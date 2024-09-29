@@ -17,13 +17,21 @@ public class MonsterAI : MonoBehaviour
     public float avoidWallDistance = 2f; // Minimum distance from walls while patrolling
 
     private bool isChasing = false; // Whether the AI is currently chasing the player
+    private bool isAgonizing = false; // Whether the monster is currently agonizing
+    private float agonizingTimer = 0f; // Timer to control the agonizing interval
+    private float agonizingDuration = 10f; // Maximum duration for agonizing
+
     public LayerMask obstacleMask; // Layer mask for objects that block the line of sight (e.g., walls)
+
+    private Animator animator; // Reference to the Animator component
+    private float nextAgonizingTime = 30f; // Time interval for agonizing animation
 
     void Start()
     {
         agent = GetComponent<NavMeshAgent>();
         agent.speed = patrolSpeed; // Start patrolling with patrol speed
 
+        animator = GetComponent<Animator>(); // Get the Animator component
         if (centrePoint == null)
         {
             centrePoint = transform; // Default patrol area is around the AI itself
@@ -32,6 +40,17 @@ public class MonsterAI : MonoBehaviour
 
     void Update()
     {
+        if (isAgonizing)
+        {
+            // If agonizing, count the time and return to patrolling when finished
+            agonizingTimer += Time.deltaTime;
+            if (agonizingTimer >= agonizingDuration)
+            {
+                EndAgonizing();
+            }
+            return; // Skip normal logic while agonizing
+        }
+
         float distanceToPlayer = Vector3.Distance(transform.position, player.position);
 
         // Check if player is within detection range and there is line of sight
@@ -46,6 +65,9 @@ public class MonsterAI : MonoBehaviour
             agent.speed = patrolSpeed; // Return to normal patrol speed
         }
 
+        // Update the Animator based on the chasing state
+        animator.SetBool("isChasing", isChasing);
+
         if (isChasing)
         {
             // Chase the player
@@ -53,8 +75,16 @@ public class MonsterAI : MonoBehaviour
         }
         else
         {
-            // Randomly patrol around the map
+            // Randomly patrol around the map and potentially agonize
             Patrol();
+
+            // Handle agonizing only while patrolling
+            nextAgonizingTime -= Time.deltaTime;
+            if (nextAgonizingTime <= 0f)
+            {
+                StartAgonizing();
+                nextAgonizingTime = 30f; // Reset for the next agonizing session
+            }
         }
     }
 
@@ -77,6 +107,34 @@ public class MonsterAI : MonoBehaviour
         {
             agent.SetDestination(player.position); // Chase the player
         }
+    }
+
+    void StartAgonizing()
+    {
+        isAgonizing = true;
+        agonizingTimer = 0f; // Reset the agonizing timer
+
+        // Stop the monster from moving
+        agent.isStopped = true;
+
+        // Trigger the Agonizing animation
+        animator.SetTrigger("Agonize");
+    }
+
+    void EndAgonizing()
+    {
+        isAgonizing = false;
+
+        // Resume patrolling
+        agent.isStopped = false;
+
+        // Reset animation to walking
+        animator.SetBool("isChasing", false);
+
+        animator.ResetTrigger("Agonize");
+
+        // Resume patrol or whatever the AI was doing before
+        Patrol();
     }
 
     // Find a valid patrol point while avoiding walls
