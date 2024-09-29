@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
+using Cinemachine; // Import Cinemachine for virtual camera control
 
 public class MonsterAI : MonoBehaviour
 {
@@ -10,21 +11,33 @@ public class MonsterAI : MonoBehaviour
     public Transform centrePoint; // Center of patrol area
 
     public Transform player; // Reference to the player
+    public Transform monsterHand; // Reference to the monster's hand bone
     public float detectionRange = 10f; // Range within which the AI detects the player
     public float chasingDistance = 15f; // Max distance for chasing the player
+    public float attackDistance = 2f; // Distance within which the monster will perform the choke lift attack
     public float chaseSpeed = 6f; // Speed while chasing the player
     public float patrolSpeed = 3.5f; // Speed during patrolling
     public float avoidWallDistance = 2f; // Minimum distance from walls while patrolling
 
+    public CinemachineVirtualCamera playerCam; // Reference to player's main Cinemachine camera
+    public CinemachineVirtualCamera chokeLiftCam; // Reference to the camera attached to the monster's hand for choke lift
+
     private bool isChasing = false; // Whether the AI is currently chasing the player
     private bool isAgonizing = false; // Whether the monster is currently agonizing
-    private float agonizingTimer = 0f; // Timer to control the agonizing interval
-    private float agonizingDuration = 10f; // Maximum duration for agonizing
+    private bool isAttacking = false; // Whether the monster is currently performing the attack
+    private float agonizingTimer = 0f; // Timer to track how long the monster has been agonizing
+    public float agonizingDuration = 10f; // Maximum duration for agonizing
 
     public LayerMask obstacleMask; // Layer mask for objects that block the line of sight (e.g., walls)
 
     private Animator animator; // Reference to the Animator component
     private float nextAgonizingTime = 30f; // Time interval for agonizing animation
+
+    private bool chokeCooldownActive = false; // Tracks if the choke lift is on cooldown
+    public float chokeCooldownDuration = 10f; // The duration of the cooldown in seconds
+    public float safeDistance = 3f; // Safe distance the player needs to be away from the monster after being thrown
+
+    private CharacterController playerController; // Reference to player's CharacterController
 
     void Start()
     {
@@ -32,26 +45,56 @@ public class MonsterAI : MonoBehaviour
         agent.speed = patrolSpeed; // Start patrolling with patrol speed
 
         animator = GetComponent<Animator>(); // Get the Animator component
+
+        // Reference the player's CharacterController
+        playerController = player.GetComponent<CharacterController>();
+
         if (centrePoint == null)
         {
             centrePoint = transform; // Default patrol area is around the AI itself
         }
+
+        if (monsterHand == null)
+        {
+            Debug.LogError("Monster's hand bone is not assigned.");
+        }
+
+        if (playerCam == null || chokeLiftCam == null)
+        {
+            Debug.LogError("Cinemachine cameras are not assigned.");
+        }
+
+        // Ensure the player's main camera is active at the start
+        playerCam.Priority = 10; // Higher priority means it's active
+        chokeLiftCam.Priority = 0; // Ensure this is initially inactive
     }
 
     void Update()
     {
-        if (isAgonizing)
+        if (isAgonizing || isAttacking || chokeCooldownActive)
         {
-            // If agonizing, count the time and return to patrolling when finished
-            agonizingTimer += Time.deltaTime;
-            if (agonizingTimer >= agonizingDuration)
+            // If agonizing, count the time and end it after the agonizing duration
+            if (isAgonizing)
             {
-                EndAgonizing();
+                agonizingTimer += Time.deltaTime;
+                if (agonizingTimer >= agonizingDuration)
+                {
+                    EndAgonizing();
+                }
             }
-            return; // Skip normal logic while agonizing
+
+            // Skip all other logic while agonizing, attacking, or in cooldown
+            return;
         }
 
         float distanceToPlayer = Vector3.Distance(transform.position, player.position);
+
+        // Handle close-range attack (Superhuman Choke Lift)
+        if (distanceToPlayer <= attackDistance && !chokeCooldownActive)
+        {
+            StartChokeLift();
+            return; // Skip other logic while the attack is performed
+        }
 
         // Check if player is within detection range and there is line of sight
         if (distanceToPlayer <= detectionRange && HasLineOfSight())
@@ -109,6 +152,110 @@ public class MonsterAI : MonoBehaviour
         }
     }
 
+    void StartChokeLift()
+    {
+        // Stop the agent and trigger the choke lift animation
+        isAttacking = true;
+        agent.isStopped = true;
+
+        // Trigger the choke lift animation
+        animator.SetTrigger("ChokeLift");
+
+        // Disable player movement (but don't physically move the player)
+        DisablePlayerMovement();
+
+        // Switch to the ChokeLiftCam to simulate the choke (the player model stays on the ground)
+        SwitchToChokeLiftCam();
+
+        // Schedule the end of the attack (adjust timing based on your animation length)
+        Invoke("EndChokeLift", 3f); // Adjust this duration based on the animation length
+    }
+
+
+    void EndChokeLift()
+    {
+        isAttacking = false;
+
+        // Reposition the player a small distance away from the monster to simulate the throw
+        Vector3 throwDirection = (player.position - transform.position).normalized;
+        float throwDistance = 2f;
+        player.position = transform.position + throwDirection * throwDistance;
+
+        // Switch back to the player's main camera
+        SwitchToPlayerCam();
+
+        // Re-enable player movement
+        EnablePlayerMovement();
+
+        // Start cooldown and trigger the agonize animation
+        StartChokeCooldown();
+
+        // Resume monster behavior (resume NavMeshAgent movement)
+        agent.isStopped = false;
+
+        // Reset the choke lift animation trigger
+        animator.ResetTrigger("ChokeLift");
+    }
+
+
+
+
+
+    // Temporarily disable player movement when picked up
+    void DisablePlayerMovement()
+    {
+        SC_FPSController fpsController = player.GetComponent<SC_FPSController>();
+        if (fpsController != null)
+        {
+            fpsController.canMove = false; // Disable player movement
+        }
+
+        if (playerController != null)
+        {
+            playerController.enabled = false; // Freeze player movement by disabling CharacterController
+        }
+    }
+
+    void EnablePlayerMovement()
+    {
+        SC_FPSController fpsController = player.GetComponent<SC_FPSController>();
+        if (fpsController != null)
+        {
+            fpsController.canMove = true; // Re-enable player movement
+        }
+
+        // If the player uses a CharacterController or Rigidbody, make sure it's enabled again
+        CharacterController playerController = player.GetComponent<CharacterController>();
+        if (playerController != null)
+        {
+            playerController.enabled = true; // Re-enable CharacterController to restore movement
+        }
+    }
+
+
+    // Switch to the choke lift camera
+    void SwitchToChokeLiftCam()
+    {
+        Debug.Log("Switching to chokecamera");
+        chokeLiftCam.Priority = 20; // Higher priority activates the choke lift camera
+        playerCam.Priority = 0;     // Lower priority disables the player's main camera
+    }
+
+    // Switch back to the player's main camera
+    void SwitchToPlayerCam()
+    {
+        // Re-enable the player's main camera
+        playerCam.Priority = 20;
+        chokeLiftCam.Priority = 0;
+
+        // Reset the player's camera rotation to its upright position
+        playerCam.transform.localRotation = Quaternion.identity;
+
+        // Ensure that the player's camera position matches the player's head position
+        playerCam.transform.position = player.transform.position + new Vector3(0, 1.6f, 0); // Adjust the offset as necessary to align with the player's head
+    }
+
+
     void StartAgonizing()
     {
         isAgonizing = true;
@@ -131,11 +278,61 @@ public class MonsterAI : MonoBehaviour
         // Reset animation to walking
         animator.SetBool("isChasing", false);
 
+        // Reset the Agonize animation
         animator.ResetTrigger("Agonize");
 
         // Resume patrol or whatever the AI was doing before
         Patrol();
     }
+
+    void StartChokeCooldown()
+    {
+        chokeCooldownActive = true;
+        isAgonizing = true;
+        animator.SetBool("isChasing", false);
+        agonizingTimer = 0f;
+
+        // Stop the NavMeshAgent so the monster doesn't move during the agonizing animation
+        agent.isStopped = true;
+
+        // Trigger the agonize animation
+        animator.SetTrigger("Agonize");
+
+        // Set a cooldown period (e.g., 5 seconds)
+        Invoke("EndChokeCooldown", chokeCooldownDuration);
+    }
+
+
+
+    void EndChokeCooldown()
+    {
+        chokeCooldownActive = false;
+        isAgonizing = false;
+
+        // Reset the Agonize animation trigger
+        animator.ResetTrigger("Agonize");
+        animator.SetBool("isChasing", false);
+
+        // Resume monster behavior by re-enabling the NavMeshAgent
+        agent.isStopped = false;
+
+        // Determine whether to patrol or chase the player after the cooldown
+        float distanceToPlayer = Vector3.Distance(transform.position, player.position);
+        if (distanceToPlayer > detectionRange) // Player is far enough
+        {
+            // Return to patrolling
+            agent.speed = patrolSpeed;
+            Patrol();
+        }
+        else if (HasLineOfSight()) // Player is still within range and visible
+        {
+            // Resume chasing the player
+            isChasing = true;
+            agent.speed = chaseSpeed;
+            ChasePlayer();
+        }
+    }
+
 
     // Find a valid patrol point while avoiding walls
     bool FindValidPatrolPoint(out Vector3 result)

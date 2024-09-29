@@ -49,6 +49,12 @@ public class SC_FPSController : MonoBehaviour
 
     void Update()
     {
+        // Check if the CharacterController is active and enabled before doing anything
+        if (!characterController.enabled)
+        {
+            return; // Exit Update if the CharacterController is disabled
+        }
+
         // We are grounded, so recalculate move direction based on axes
         Vector3 forward = transform.TransformDirection(Vector3.forward);
         Vector3 right = transform.TransformDirection(Vector3.right);
