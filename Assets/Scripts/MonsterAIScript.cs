@@ -2,19 +2,20 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
-using Cinemachine; // Import Cinemachine for virtual camera control
+using Cinemachine;
 
 public class MonsterAI : MonoBehaviour
 {
     public NavMeshAgent agent;
-    public float patrolRange; // Radius for random patrol
-    public Transform centrePoint; // Center of patrol area
+    public List<Transform> waypoints; // List of waypoints for patrolling
+    private int currentWaypointIndex = -1; // Index to track the current waypoint
 
     public Transform player; // Reference to the player
     public Transform monsterHand; // Reference to the monster's hand bone
     public float detectionRange = 10f; // Range within which the AI detects the player
     public float chasingDistance = 15f; // Max distance for chasing the player
     public float attackDistance = 2f; // Distance within which the monster will perform the choke lift attack
+    public float agonizingRange = 20f;  // Range within which the monster starts agonizing
     public float chaseSpeed = 6f; // Speed while chasing the player
     public float patrolSpeed = 3.5f; // Speed during patrolling
     public float avoidWallDistance = 2f; // Minimum distance from walls while patrolling
@@ -24,6 +25,7 @@ public class MonsterAI : MonoBehaviour
 
     private bool isChasing = false; // Whether the AI is currently chasing the player
     private bool isAgonizing = false; // Whether the monster is currently agonizing
+    private bool hasAgonized = false; // Ensure monster agonizes only once per encounter
     private bool isAttacking = false; // Whether the monster is currently performing the attack
     private float agonizingTimer = 0f; // Timer to track how long the monster has been agonizing
     public float agonizingDuration = 10f; // Maximum duration for agonizing
@@ -31,7 +33,12 @@ public class MonsterAI : MonoBehaviour
     public LayerMask obstacleMask; // Layer mask for objects that block the line of sight (e.g., walls)
 
     private Animator animator; // Reference to the Animator component
-    private float nextAgonizingTime = 30f; // Time interval for agonizing animation
+
+    public float agonizingDamageRange = 10f; // Range in which the player is affected by agonizing
+    public AudioSource screamAudioSource; // The audio source for the monster's scream
+    public AudioClip agonizeClip; // The sound clip for agonizing
+
+    private PlayerAgonizeEffect playerAgonizeEffect; // Reference to the PlayerAgonizeEffect script
 
     private bool chokeCooldownActive = false; // Tracks if the choke lift is on cooldown
     public float chokeCooldownDuration = 10f; // The duration of the cooldown in seconds
@@ -46,12 +53,11 @@ public class MonsterAI : MonoBehaviour
 
         animator = GetComponent<Animator>(); // Get the Animator component
 
-        // Reference the player's CharacterController
-        playerController = player.GetComponent<CharacterController>();
-
-        if (centrePoint == null)
+        // Ensure the PlayerAgonizeEffect is assigned
+        playerAgonizeEffect = player.GetComponent<PlayerAgonizeEffect>();
+        if (playerAgonizeEffect == null)
         {
-            centrePoint = transform; // Default patrol area is around the AI itself
+            Debug.LogError("PlayerAgonizeEffect script not found on the player.");
         }
 
         if (monsterHand == null)
@@ -64,13 +70,24 @@ public class MonsterAI : MonoBehaviour
             Debug.LogError("Cinemachine cameras are not assigned.");
         }
 
+        // Assign the agonize clip to the AudioSource if not done through the Inspector
+        if (screamAudioSource != null && agonizeClip != null)
+        {
+            screamAudioSource.clip = agonizeClip;
+        }
+
         // Ensure the player's main camera is active at the start
         playerCam.Priority = 10; // Higher priority means it's active
         chokeLiftCam.Priority = 0; // Ensure this is initially inactive
+
+        // Start patrolling to a random waypoint
+        GotoNextWaypoint();
     }
 
     void Update()
     {
+        AvoidWallHugging();
+
         if (isAgonizing || isAttacking || chokeCooldownActive)
         {
             // If agonizing, count the time and end it after the agonizing duration
@@ -89,23 +106,32 @@ public class MonsterAI : MonoBehaviour
 
         float distanceToPlayer = Vector3.Distance(transform.position, player.position);
 
-        // Handle close-range attack (Superhuman Choke Lift)
-        if (distanceToPlayer <= attackDistance && !chokeCooldownActive)
+        // Trigger agonizing if the player enters detection range and the monster hasn't agonized yet
+        if (distanceToPlayer <= detectionRange && !hasAgonized)
         {
-            StartChokeLift();
-            return; // Skip other logic while the attack is performed
+            StartAgonizing();
+            return;
         }
 
-        // Check if player is within detection range and there is line of sight
-        if (distanceToPlayer <= detectionRange && HasLineOfSight())
+        // After agonizing, if the player is within chasing distance, start chasing the player
+        if (hasAgonized && !isChasing && distanceToPlayer <= chasingDistance && distanceToPlayer > safeDistance)
         {
             isChasing = true; // Start chasing the player
             agent.speed = chaseSpeed; // Increase speed when chasing
         }
-        else if (isChasing && distanceToPlayer > chasingDistance)
+
+        // If the player runs away beyond chasing distance or after the chase begins, stop chasing and return to patrol
+        if (isChasing && distanceToPlayer > chasingDistance)
         {
-            isChasing = false; // Stop chasing if player is too far
+            isChasing = false; // Stop chasing if the player runs away
             agent.speed = patrolSpeed; // Return to normal patrol speed
+        }
+
+        // Handle close-range attack (Superhuman Choke Lift)
+        if (isChasing && distanceToPlayer <= attackDistance && !chokeCooldownActive)
+        {
+            StartChokeLift();
+            return; // Skip other logic while the attack is performed
         }
 
         // Update the Animator based on the chasing state
@@ -118,30 +144,29 @@ public class MonsterAI : MonoBehaviour
         }
         else
         {
-            // Randomly patrol around the map and potentially agonize
             Patrol();
-
-            // Handle agonizing only while patrolling
-            nextAgonizingTime -= Time.deltaTime;
-            if (nextAgonizingTime <= 0f)
-            {
-                StartAgonizing();
-                nextAgonizingTime = 30f; // Reset for the next agonizing session
-            }
         }
     }
 
     void Patrol()
     {
-        if (agent.remainingDistance <= agent.stoppingDistance) // Reached patrol destination
+        // If the agent has reached the current waypoint, go to the next one
+        if (!agent.pathPending && agent.remainingDistance < 0.5f)
         {
-            Vector3 point;
-            if (FindValidPatrolPoint(out point)) // Get a valid point that avoids walls
-            {
-                Debug.DrawRay(point, Vector3.up, Color.blue, 1.0f); // Visualize patrol points
-                agent.SetDestination(point); // Move to the random point
-            }
+            GotoNextWaypoint();
         }
+    }
+
+    void GotoNextWaypoint()
+    {
+        if (waypoints.Count == 0)
+            return;
+
+        // Choose a random waypoint from the list
+        currentWaypointIndex = Random.Range(0, waypoints.Count);
+
+        // Set the agent to go to the selected random waypoint
+        agent.SetDestination(waypoints[currentWaypointIndex].position);
     }
 
     void ChasePlayer()
@@ -171,15 +196,23 @@ public class MonsterAI : MonoBehaviour
         Invoke("EndChokeLift", 3f); // Adjust this duration based on the animation length
     }
 
-
     void EndChokeLift()
     {
         isAttacking = false;
 
+        // Unparent the player from the monster's hand
+        player.SetParent(null);
+
         // Reposition the player a small distance away from the monster to simulate the throw
         Vector3 throwDirection = (player.position - transform.position).normalized;
         float throwDistance = 2f;
-        player.position = transform.position + throwDirection * throwDistance;
+
+        // Use CharacterController.Move to move the player properly
+        if (playerController != null)
+        {
+            playerController.enabled = true;  // Make sure the CharacterController is enabled
+            playerController.Move(throwDirection * throwDistance); // Apply the movement
+        }
 
         // Switch back to the player's main camera
         SwitchToPlayerCam();
@@ -196,10 +229,6 @@ public class MonsterAI : MonoBehaviour
         // Reset the choke lift animation trigger
         animator.ResetTrigger("ChokeLift");
     }
-
-
-
-
 
     // Temporarily disable player movement when picked up
     void DisablePlayerMovement()
@@ -232,7 +261,6 @@ public class MonsterAI : MonoBehaviour
         }
     }
 
-
     // Switch to the choke lift camera
     void SwitchToChokeLiftCam()
     {
@@ -244,65 +272,90 @@ public class MonsterAI : MonoBehaviour
     // Switch back to the player's main camera
     void SwitchToPlayerCam()
     {
-        // Re-enable the player's main camera
-        playerCam.Priority = 20;
-        chokeLiftCam.Priority = 0;
-
-        // Reset the player's camera rotation to its upright position
-        playerCam.transform.localRotation = Quaternion.identity;
-
-        // Ensure that the player's camera position matches the player's head position
-        playerCam.transform.position = player.transform.position + new Vector3(0, 1.6f, 0); // Adjust the offset as necessary to align with the player's head
+        // Ensure player camera is active and the choke camera is deactivated
+        playerCam.Priority = 20;  // Ensure player camera is active
+        chokeLiftCam.Priority = 0; // Disable choke lift camera
     }
-
 
     void StartAgonizing()
     {
         isAgonizing = true;
+        hasAgonized = true; // Ensure it only happens once per encounter
         agonizingTimer = 0f; // Reset the agonizing timer
+
+        // Notify the PlayerAgonizeEffect script to apply agonizing effects
+        if (playerAgonizeEffect != null)
+        {
+            playerAgonizeEffect.StartAgonizing(transform, agonizingDamageRange);
+        }
 
         // Stop the monster from moving
         agent.isStopped = true;
 
         // Trigger the Agonizing animation
         animator.SetTrigger("Agonize");
+
+        // Play the agonizing sound
+        if (screamAudioSource != null && screamAudioSource.clip != null)
+        {
+            screamAudioSource.Play();
+        }
     }
 
     void EndAgonizing()
     {
         isAgonizing = false;
-
-        // Resume patrolling
+        // Stop the monster from moving
         agent.isStopped = false;
 
+        if (playerAgonizeEffect != null)
+        {
+            playerAgonizeEffect.StopAgonizing();
+        }
+
+        // Check if the player is still in the chase range or attack range
+        float distanceToPlayer = Vector3.Distance(transform.position, player.position);
+        if (distanceToPlayer <= chasingDistance)
+        {
+            isChasing = true; // Resume chasing
+            agent.speed = chaseSpeed; // Set to chase speed
+        }
+        else
+        {
+            // Resume patrolling if the player is out of range
+            agent.isStopped = false;
+            GotoNextWaypoint();
+        }
+
         // Reset animation to walking
-        animator.SetBool("isChasing", false);
+        animator.SetBool("isChasing", isChasing);
 
         // Reset the Agonize animation
         animator.ResetTrigger("Agonize");
 
-        // Resume patrol or whatever the AI was doing before
-        Patrol();
+        // Stop the agonizing sound
+        if (screamAudioSource != null)
+        {
+            screamAudioSource.Stop();
+        }
     }
 
     void StartChokeCooldown()
     {
         chokeCooldownActive = true;
-        isAgonizing = true;
-        animator.SetBool("isChasing", false);
-        agonizingTimer = 0f;
 
-        // Stop the NavMeshAgent so the monster doesn't move during the agonizing animation
+        // Reset animation to walking
+        animator.SetBool("isChasing", false);
+
+        // Stop the monster from moving
         agent.isStopped = true;
 
-        // Trigger the agonize animation
+        // Trigger the Agonizing animation
         animator.SetTrigger("Agonize");
 
         // Set a cooldown period (e.g., 5 seconds)
         Invoke("EndChokeCooldown", chokeCooldownDuration);
     }
-
-
 
     void EndChokeCooldown()
     {
@@ -322,7 +375,7 @@ public class MonsterAI : MonoBehaviour
         {
             // Return to patrolling
             agent.speed = patrolSpeed;
-            Patrol();
+            GotoNextWaypoint();
         }
         else if (HasLineOfSight()) // Player is still within range and visible
         {
@@ -331,52 +384,6 @@ public class MonsterAI : MonoBehaviour
             agent.speed = chaseSpeed;
             ChasePlayer();
         }
-    }
-
-
-    // Find a valid patrol point while avoiding walls
-    bool FindValidPatrolPoint(out Vector3 result)
-    {
-        for (int i = 0; i < 30; i++) // Try up to 30 times to find a valid point
-        {
-            if (RandomPoint(centrePoint.position, patrolRange, out result))
-            {
-                // Check if the point is too close to a wall
-                if (!IsNearWall(result))
-                {
-                    return true; // Point is valid
-                }
-            }
-        }
-
-        result = Vector3.zero;
-        return false; // No valid point found
-    }
-
-    // Check if the patrol point is near a wall
-    bool IsNearWall(Vector3 point)
-    {
-        // Perform a sphere cast to check for obstacles (like walls) within avoidWallDistance
-        Collider[] hitColliders = Physics.OverlapSphere(point, avoidWallDistance, obstacleMask);
-        if (hitColliders.Length > 0)
-        {
-            // If the sphere cast hits anything, the point is too close to a wall
-            return true;
-        }
-        return false;
-    }
-
-    bool RandomPoint(Vector3 center, float range, out Vector3 result)
-    {
-        Vector3 randomPoint = center + Random.insideUnitSphere * range; // Random point within the patrol range
-        NavMeshHit hit;
-        if (NavMesh.SamplePosition(randomPoint, out hit, 1.0f, NavMesh.AllAreas))
-        {
-            result = hit.position;
-            return true;
-        }
-        result = Vector3.zero;
-        return false;
     }
 
     // Check if there is line of sight to the player
@@ -396,6 +403,18 @@ public class MonsterAI : MonoBehaviour
         }
 
         return true; // Player is visible
+    }
+
+    void AvoidWallHugging()
+    {
+        RaycastHit hit;
+        // Cast a ray forward from the monster's position to check for nearby walls
+        if (Physics.Raycast(transform.position, transform.forward, out hit, avoidWallDistance, obstacleMask))
+        {
+            // If a wall is detected, rotate the monster slightly away from the wall
+            Vector3 avoidDirection = Vector3.Cross(hit.normal, Vector3.up);
+            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(avoidDirection), Time.deltaTime * 5f);
+        }
     }
 
     void OnDrawGizmosSelected()
