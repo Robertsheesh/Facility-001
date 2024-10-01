@@ -39,7 +39,7 @@ public class PlayerInteraction : MonoBehaviour
                 // Check if it's a door
                 if (hit.collider.CompareTag("Door"))
                 {
-                    ShowInteractionText(doorInteractionText, "Open door: [E]");
+                    ShowInteractionText(doorInteractionText, "Open locker: [E]");
                     HandleDoorInteraction(hit);
                 }
                 // Check if it's a button
