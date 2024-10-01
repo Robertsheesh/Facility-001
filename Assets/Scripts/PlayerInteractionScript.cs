@@ -81,7 +81,7 @@ public class PlayerInteraction : MonoBehaviour
                 // Check if it's a computer
                 else if (hit.collider.CompareTag("Computer"))
                 {
-                    ShowInteractionText(computerInteractionText, "Use computer: [E]");
+                    ShowInteractionText(computerInteractionText, "Use computer: [LMB]");
                     HandleComputerInteraction(hit);
                 }
                 // Check if it's a radiation suit
@@ -179,7 +179,7 @@ public class PlayerInteraction : MonoBehaviour
     // Function to handle the computer interaction
     void HandleComputerInteraction(RaycastHit hit)
     {
-        if (Input.GetKeyDown(KeyCode.E))
+        if (Input.GetMouseButtonDown(0))
         {
             Debug.Log("Using computer: " + hit.collider.name);
             // Add computer usage logic here

@@ -1,41 +1,40 @@
 using UnityEngine;
 using UnityEngine.Rendering.PostProcessing;
+using Cinemachine; // Import Cinemachine for camera noise
 using System.Collections;
 
 public class PlayerAgonizeEffect : MonoBehaviour
 {
-    public float maxDamage = 10f; // Max damage dealt to the player if they are close to the monster
-    public float minDamage = 2f;  // Minimum damage if the player is at the edge of the range
-    public float slowMultiplier = 0.5f; // How much to slow the player's movement (e.g., 50% speed)
-    public float shakeDuration = 0.5f;  // Duration for screen shake
-    public float shakeMagnitude = 0.1f; // Intensity of screen shake
+    public float maxDamage = 10f;
+    public float minDamage = 2f;
+    public float slowMultiplier = 0.5f;
 
-    public float maxChromaticAberration = 1.0f; // Maximum chromatic aberration intensity
-    private ChromaticAberration chromaticAberration; // Reference to the Chromatic Aberration effect
+    public float shakeDuration = 0.5f;
+    public float shakeMagnitude = 0.1f;
 
-    public float maxLensDistortionY = 0.5f; // Maximum value for Lens Distortion Center Y
-    private LensDistortion lensDistortion; // Reference to the Lens Distortion effect
+    public float maxChromaticAberration = 1.0f;
+    private ChromaticAberration chromaticAberration;
+
+    public float maxLensDistortionY = 0.5f;
+    private LensDistortion lensDistortion;
 
     private SC_FPSController playerController;
     private PlayerHealth playerHealth;
-    private Transform monster; // Reference to the monster
+    private Transform monster;
     private bool isAgonizing = false;
     private float agonizingDamageRange;
-
-    private Vector3 initialCameraPosition;
-    private Camera playerCam;
 
     private float originalWalkingSpeed;
     private float originalRunningSpeed;
 
-    private bool isShaking = false; // Track if the camera shake is active
+    // Cinemachine variables for camera shake
+    public CinemachineVirtualCamera cinemachineCamera;  // Reference to player's Cinemachine camera
+    private CinemachineBasicMultiChannelPerlin cinemachineNoise;  // Reference to Cinemachine noise
 
     void Start()
     {
         playerController = GetComponent<SC_FPSController>();
-        playerHealth = GetComponent<PlayerHealth>(); // Get the PlayerHealth component
-        playerCam = Camera.main;
-        initialCameraPosition = playerCam.transform.localPosition;
+        playerHealth = GetComponent<PlayerHealth>();
 
         if (playerController != null)
         {
@@ -43,12 +42,22 @@ public class PlayerAgonizeEffect : MonoBehaviour
             originalRunningSpeed = playerController.runningSpeed;
         }
 
-        // Find the Post-Processing Volume and access the Chromatic Aberration and Lens Distortion components
+        // Post-process effects
         PostProcessVolume volume = FindObjectOfType<PostProcessVolume>();
         if (volume != null)
         {
-            volume.profile.TryGetSettings(out chromaticAberration); // Get the chromatic aberration setting
-            volume.profile.TryGetSettings(out lensDistortion); // Get the lens distortion setting
+            volume.profile.TryGetSettings(out chromaticAberration);
+            volume.profile.TryGetSettings(out lensDistortion);
+        }
+
+        // Get the Cinemachine noise component from the Cinemachine camera
+        if (cinemachineCamera != null)
+        {
+            cinemachineNoise = cinemachineCamera.GetCinemachineComponent<CinemachineBasicMultiChannelPerlin>();
+        }
+        else
+        {
+            Debug.LogError("Cinemachine camera is not assigned.");
         }
     }
 
@@ -58,48 +67,44 @@ public class PlayerAgonizeEffect : MonoBehaviour
         {
             float distanceToMonster = Vector3.Distance(transform.position, monster.position);
 
-            // Check if the player is within the agonizing range
             if (distanceToMonster <= agonizingDamageRange)
             {
-                ApplyAgonizingEffects(distanceToMonster); // Apply effects
+                ApplyAgonizingEffects(distanceToMonster);
             }
             else
             {
-                ResetPlayerEffects(); // Reset if out of range
+                ResetPlayerEffects();
             }
         }
     }
 
-    // Called by the MonsterAI script when the monster starts agonizing
     public void StartAgonizing(Transform monsterTransform, float damageRange)
     {
-        monster = monsterTransform; // Store the monster reference
-        agonizingDamageRange = damageRange; // Store the range of agonizing effects
+        monster = monsterTransform;
+        agonizingDamageRange = damageRange;
         isAgonizing = true;
 
-        // Start the camera shake only if it's not already shaking
-        if (!isShaking)
+        // Start camera noise shake if not already shaking
+        if (cinemachineNoise != null)
         {
-            StartCoroutine(ShakeCamera());
+            cinemachineNoise.m_AmplitudeGain = 0; // Reset noise
+            StartCoroutine(ApplyCinemachineShake());
         }
     }
 
-    // Called by the MonsterAI script when the monster stops agonizing
     public void StopAgonizing()
     {
         isAgonizing = false;
-        ResetPlayerEffects(); // Reset the effects on the player
+        ResetPlayerEffects();
     }
 
     private void ApplyAgonizingEffects(float distanceToMonster)
     {
         // Calculate damage based on proximity
         float damage = Mathf.Lerp(maxDamage, minDamage, distanceToMonster / agonizingDamageRange);
-
-        // Apply damage to the player using the PlayerHealth script
         if (playerHealth != null)
         {
-            playerHealth.ModifyHealth(-damage * Time.deltaTime); // Apply damage over time
+            playerHealth.ModifyHealth(-damage * Time.deltaTime);
         }
 
         // Slow player movement
@@ -109,74 +114,53 @@ public class PlayerAgonizeEffect : MonoBehaviour
             playerController.runningSpeed = originalRunningSpeed * slowMultiplier;
         }
 
-        // Adjust the chromatic aberration intensity based on distance to monster
+        // Adjust chromatic aberration intensity
         if (chromaticAberration != null)
         {
-            float proximityFactor = Mathf.Clamp01(1f - (distanceToMonster / agonizingDamageRange)); // Closer = stronger effect
-            chromaticAberration.intensity.value = maxChromaticAberration * proximityFactor; // Scale the chromatic aberration
+            float proximityFactor = Mathf.Clamp01(1f - (distanceToMonster / agonizingDamageRange));
+            chromaticAberration.intensity.value = maxChromaticAberration * proximityFactor;
         }
 
-        // Adjust the lens distortion "Center Y" based on distance to monster
+        // Adjust lens distortion based on proximity
         if (lensDistortion != null)
         {
-            float proximityFactor = Mathf.Clamp01(1f - (distanceToMonster / agonizingDamageRange)); // Closer = stronger effect
-            lensDistortion.centerY.value = maxLensDistortionY * proximityFactor; // Scale the lens distortion Center Y
-        }
-
-        // Ensure screen shake starts when the player is within range
-        if (!isShaking) // If shaking is not already happening
-        {
-            StartCoroutine(ShakeCamera()); // Start the shake if not already shaking
+            float proximityFactor = Mathf.Clamp01(1f - (distanceToMonster / agonizingDamageRange));
+            lensDistortion.centerY.value = maxLensDistortionY * proximityFactor;
         }
     }
 
-    private IEnumerator ShakeCamera()
+    private IEnumerator ApplyCinemachineShake()
     {
-        isShaking = true;
-        float elapsed = 0.0f;
-        Quaternion originalRotation = playerCam.transform.localRotation; // Store the original rotation
-
-        while (isAgonizing) // Shake only while agonizing
+        float elapsed = 0f;
+        while (isAgonizing && elapsed < shakeDuration)
         {
-            float distanceToMonster = Vector3.Distance(transform.position, monster.position); // Calculate the distance to the monster
+            float distanceToMonster = Vector3.Distance(transform.position, monster.position);
+            float proximityFactor = Mathf.Clamp01(1f - (distanceToMonster / agonizingDamageRange));
+            float currentShakeMagnitude = shakeMagnitude * proximityFactor;
 
-            // Interpolate the shake magnitude based on the distance to the monster
-            float proximityFactor = Mathf.Clamp01(1f - (distanceToMonster / agonizingDamageRange)); // Closer = stronger shake
-            float currentShakeMagnitude = shakeMagnitude * proximityFactor; // Scale the shake magnitude
-
-            if (elapsed < shakeDuration)
+            // Apply noise magnitude based on proximity
+            if (cinemachineNoise != null)
             {
-                // Apply rotational shake with the adjusted magnitude
-                float xAngle = Random.Range(-1f, 1f) * currentShakeMagnitude;
-                float yAngle = Random.Range(-1f, 1f) * currentShakeMagnitude;
-                float zAngle = Random.Range(-1f, 1f) * currentShakeMagnitude * 0.5f; // Reduce Z-shake for less extreme effect
-
-                // Rotate the camera around its axes based on the current shake magnitude
-                playerCam.transform.localRotation = Quaternion.Euler(originalRotation.eulerAngles + new Vector3(xAngle, yAngle, zAngle));
-
-                elapsed += Time.deltaTime;
-            }
-            else
-            {
-                elapsed = 0f; // Reset shake cycle
+                cinemachineNoise.m_AmplitudeGain = Mathf.Lerp(cinemachineNoise.m_AmplitudeGain, currentShakeMagnitude, Time.deltaTime * 5f);
+                cinemachineNoise.m_FrequencyGain = 1.0f; // You can adjust this frequency if needed
             }
 
+            elapsed += Time.deltaTime;
             yield return null;
         }
 
-        // Reset the camera's rotation after the shake effect ends
-        playerCam.transform.localRotation = originalRotation;
-        isShaking = false;
+        // Reset noise after shake ends
+        if (cinemachineNoise != null)
+        {
+            cinemachineNoise.m_AmplitudeGain = Mathf.Lerp(cinemachineNoise.m_AmplitudeGain, 0f, Time.deltaTime * 5f);
+        }
     }
 
     private void ResetPlayerEffects()
     {
-        // Stop the screen shake
         StopAllCoroutines();
-        playerCam.transform.localPosition = initialCameraPosition;
-        isShaking = false;
 
-        // Reset player movement to original speed
+        // Reset player movement
         if (playerController != null)
         {
             playerController.walkingSpeed = originalWalkingSpeed;
@@ -189,10 +173,17 @@ public class PlayerAgonizeEffect : MonoBehaviour
             chromaticAberration.intensity.value = 0f;
         }
 
-        // Reset lens distortion Center Y
+        // Reset lens distortion
         if (lensDistortion != null)
         {
-            lensDistortion.centerY.value = 0f; // Reset to default
+            lensDistortion.centerY.value = 0f;
+        }
+
+        // Reset Cinemachine noise
+        if (cinemachineNoise != null)
+        {
+            cinemachineNoise.m_AmplitudeGain = 0f;
+            cinemachineNoise.m_FrequencyGain = 0f;
         }
     }
 }

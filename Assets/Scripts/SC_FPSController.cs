@@ -1,141 +1,230 @@
-using System.Collections;
-using System.Collections.Generic;
+using Cinemachine;
 using UnityEngine;
-
-[RequireComponent(typeof(CharacterController))]
 
 public class SC_FPSController : MonoBehaviour
 {
     public float walkingSpeed = 7.5f;
     public float runningSpeed = 11.5f;
-    public float waterWalkingSpeed = 3.5f; // Slower walking speed in water
-    public float waterRunningSpeed = 5.5f; // Slower running speed in water
+    public float crouchSpeed = 3.5f; // Speed when crouching
+    public float crouchHeight = 1.0f; // Height of the CharacterController when crouching
+    public float standingHeight = 2.0f; // Normal height of the CharacterController
+    public float crouchCameraHeight = 0.5f; // Height for the camera when crouching
+    public float standingCameraHeight = 1.5f; // Normal height of the camera
+    public float waterWalkingSpeed = 3.5f;
+    public float waterRunningSpeed = 5.5f;
     public float jumpSpeed = 8.0f;
     public float gravity = 20.0f;
-    public Camera playerCamera;
     public float lookSpeed = 2.0f;
     public float lookXLimit = 45.0f;
+
+    public Camera playerCamera;
+    public CinemachineVirtualCamera standingCamera; // Cinemachine camera for standing
+    public CinemachineVirtualCamera crouchingCamera; // Cinemachine camera for crouching
+
+    private CinemachineBasicMultiChannelPerlin noise; // For camera head bobbing (reference to the active camera's noise)
 
     private float normalWalkingSpeed;
     private float normalRunningSpeed;
 
-    CharacterController characterController;
-    Animator animator;  // Reference to the Animator component on the child player model
-    Vector3 moveDirection = Vector3.zero;
-    float rotationX = 0;
+    private CharacterController characterController;
+    private Animator animator;
+    private Vector3 moveDirection = Vector3.zero;
+    private float rotationX = 0; // Vertical rotation (pitch)
 
     [HideInInspector]
     public bool canMove = true;
 
-    // Threshold for dead zone to prevent small input values from triggering animations
-    public float inputDeadZone = 0.1f;
+    private bool isJumping = false;
+    public bool isCrouching = false;
+    private bool isInWater = false;
 
-    private bool isJumping = false;  // Track if the player is in the air
-    private bool isInWater = false;  // Track if the player is in water
+    public float walkingBobFrequency = 1.5f;
+    public float runningBobFrequency = 2.5f;
+    public float crouchBobFrequency = 1.0f; // Less intense bobbing for crouching
+    public float bobAmplitude = 0.2f; // Head bob amplitude
 
     void Start()
     {
         characterController = GetComponent<CharacterController>();
         animator = GetComponentInChildren<Animator>();
 
-        // Store normal movement speeds
         normalWalkingSpeed = walkingSpeed;
         normalRunningSpeed = runningSpeed;
 
-        // Lock cursor
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
+
+        // Ensure crouch camera is initially inactive
+        if (crouchingCamera != null)
+        {
+            crouchingCamera.Priority = 0; // Lower priority means it's inactive initially
+        }
+
+        // Set initial noise from standing camera
+        if (standingCamera != null)
+        {
+            noise = standingCamera.GetCinemachineComponent<CinemachineBasicMultiChannelPerlin>();
+        }
+        else
+        {
+            Debug.LogError("Standing camera is not assigned.");
+        }
     }
 
     void Update()
     {
-        // Check if the CharacterController is active and enabled before doing anything
-        if (!characterController.enabled)
-        {
-            return; // Exit Update if the CharacterController is disabled
-        }
+        if (!characterController.enabled) return;
 
-        // We are grounded, so recalculate move direction based on axes
         Vector3 forward = transform.TransformDirection(Vector3.forward);
         Vector3 right = transform.TransformDirection(Vector3.right);
 
-        // Get inputs for movement
-        float verticalInput = Input.GetAxis("Vertical"); // Forward/Backward
-        float horizontalInput = Input.GetAxis("Horizontal"); // Left/Right
+        float verticalInput = Input.GetAxis("Vertical");
+        float horizontalInput = Input.GetAxis("Horizontal");
 
-        // Apply the dead zone
-        if (Mathf.Abs(verticalInput) < inputDeadZone)
-        {
-            verticalInput = 0; // Treat very small input values as no input
-        }
+        bool isRunning = Input.GetKey(KeyCode.LeftShift) && verticalInput > 0 && !isCrouching;
 
-        if (Mathf.Abs(horizontalInput) < inputDeadZone)
-        {
-            horizontalInput = 0; // Treat very small input values as no input
-        }
+        // Check if the crouch key (LeftControl) is being held down
+        bool isCrouchingKeyHeld = Input.GetKey(KeyCode.LeftControl);
 
-        // Determine if running forward (only allow running forward)
-        bool isRunning = Input.GetKey(KeyCode.LeftShift) && verticalInput > 0;
+        // Handle crouch state
+        HandleCrouch(isCrouchingKeyHeld);
 
-        // Calculate movement speed based on whether running or walking
-        float currentWalkingSpeed = isInWater ? waterWalkingSpeed : normalWalkingSpeed;
+        float currentWalkingSpeed = isCrouching ? crouchSpeed : (isInWater ? waterWalkingSpeed : normalWalkingSpeed);
         float currentRunningSpeed = isInWater ? waterRunningSpeed : normalRunningSpeed;
 
         float curSpeedX = canMove ? (isRunning ? currentRunningSpeed : currentWalkingSpeed) * verticalInput : 0;
-        float curSpeedY = canMove ? currentWalkingSpeed * horizontalInput : 0; // Always walk when strafing or moving backwards
+        float curSpeedY = canMove ? currentWalkingSpeed * horizontalInput : 0;
 
         float movementDirectionY = moveDirection.y;
         moveDirection = (forward * curSpeedX) + (right * curSpeedY);
 
-        // Jump logic
-        if (Input.GetButton("Jump") && canMove && characterController.isGrounded && !isJumping)
+        if (Input.GetButton("Jump") && canMove && characterController.isGrounded && !isJumping && !isCrouching)
         {
             moveDirection.y = jumpSpeed;
             isJumping = true;
-            animator.SetTrigger("Jump"); // Trigger the jump animation
+            animator.SetTrigger("Jump");
         }
         else
         {
             moveDirection.y = movementDirectionY;
         }
 
-        // Apply gravity
         if (!characterController.isGrounded)
         {
             moveDirection.y -= gravity * Time.deltaTime;
         }
         else
         {
-            // If grounded and was jumping, reset the jump state
             if (isJumping)
             {
                 isJumping = false;
-                animator.ResetTrigger("Jump"); // Reset jump trigger when grounded
+                animator.ResetTrigger("Jump");
             }
         }
 
-        // Move the controller
         characterController.Move(moveDirection * Time.deltaTime);
 
-        // Player and Camera rotation
         if (canMove)
         {
-            rotationX += -Input.GetAxis("Mouse Y") * lookSpeed;
-            rotationX = Mathf.Clamp(rotationX, -lookXLimit, lookXLimit);
-            playerCamera.transform.localRotation = Quaternion.Euler(rotationX, 0, 0);
+            // Update vertical (pitch) and horizontal rotation
+            HandleLookRotation();
+
+            // Rotate the player model
             transform.rotation *= Quaternion.Euler(0, Input.GetAxis("Mouse X") * lookSpeed, 0);
         }
 
-        // Update Animator Parameters for blend tree movement
-        animator.SetFloat("Vertical", verticalInput);   // Send vertical input to blend tree
-        animator.SetFloat("Horizontal", horizontalInput); // Send horizontal input to blend tree
-        animator.SetBool("isRunning", isRunning);       // Set running animation based on movement
+        // Update Animator Parameters for movement
+        animator.SetFloat("Vertical", verticalInput);
+        animator.SetFloat("Horizontal", horizontalInput);
+        animator.SetBool("isRunning", isRunning);
+        animator.SetBool("isGrounded", characterController.isGrounded);
+        animator.SetBool("isCrouching", isCrouching);
 
-        // Update isGrounded parameter in the Animator
-        animator.SetBool("isGrounded", characterController.isGrounded); // Update isGrounded in Animator
+        // Apply camera head bobbing based on movement state
+        if (noise != null)
+        {
+            if (verticalInput != 0 || horizontalInput != 0)
+            {
+                ApplyHeadBob(isRunning, isCrouching);
+            }
+            else
+            {
+                // Reset noise when not moving
+                noise.m_AmplitudeGain = Mathf.Lerp(noise.m_AmplitudeGain, 0f, Time.deltaTime * 10f);
+                noise.m_FrequencyGain = Mathf.Lerp(noise.m_FrequencyGain, 0f, Time.deltaTime * 10f);
+            }
+        }
     }
 
-    // Detect when the player enters water
+    // Handles crouching and modifies the player's height and camera priority accordingly
+    void HandleCrouch(bool crouchKeyHeld)
+    {
+        if (crouchKeyHeld && characterController.isGrounded)
+        {
+            // Start crouching
+            characterController.height = crouchHeight; // Adjust CharacterController height
+            crouchingCamera.Priority = 10; // Activate crouching camera
+            standingCamera.Priority = 0; // Deactivate standing camera
+            isCrouching = true;
+
+            // Update noise reference to crouching camera's noise component
+            noise = crouchingCamera.GetCinemachineComponent<CinemachineBasicMultiChannelPerlin>();
+        }
+        else if (!crouchKeyHeld && isCrouching)
+        {
+            // Stand up
+            characterController.height = standingHeight; // Adjust CharacterController height
+            standingCamera.Priority = 10; // Activate standing camera
+            crouchingCamera.Priority = 0; // Deactivate crouching camera
+            isCrouching = false;
+
+            // Update noise reference to standing camera's noise component
+            noise = standingCamera.GetCinemachineComponent<CinemachineBasicMultiChannelPerlin>();
+        }
+
+        // Sync vertical rotation (pitch) between cameras
+        SyncCameraRotation();
+    }
+
+    // Handles looking up and down (vertical rotation)
+    void HandleLookRotation()
+    {
+        rotationX += -Input.GetAxis("Mouse Y") * lookSpeed;
+        rotationX = Mathf.Clamp(rotationX, -lookXLimit, lookXLimit);
+
+        // Apply pitch (vertical rotation) to the current active camera
+        if (isCrouching)
+        {
+            crouchingCamera.transform.localRotation = Quaternion.Euler(rotationX, 0, 0);
+        }
+        else
+        {
+            playerCamera.transform.localRotation = Quaternion.Euler(rotationX, 0, 0);
+        }
+    }
+
+    // Sync the vertical rotation between cameras when switching
+    void SyncCameraRotation()
+    {
+        if (isCrouching)
+        {
+            crouchingCamera.transform.localRotation = Quaternion.Euler(rotationX, 0, 0);
+        }
+        else
+        {
+            playerCamera.transform.localRotation = Quaternion.Euler(rotationX, 0, 0);
+        }
+    }
+
+    void ApplyHeadBob(bool isRunning, bool isCrouching)
+    {
+        float targetAmplitude = bobAmplitude;
+        float targetFrequency = isRunning ? runningBobFrequency : (isCrouching ? crouchBobFrequency : walkingBobFrequency);
+
+        noise.m_AmplitudeGain = Mathf.Lerp(noise.m_AmplitudeGain, targetAmplitude, Time.deltaTime * 10f);
+        noise.m_FrequencyGain = Mathf.Lerp(noise.m_FrequencyGain, targetFrequency, Time.deltaTime * 10f);
+    }
+
     private void OnTriggerEnter(Collider other)
     {
         if (other.CompareTag("Water"))
@@ -144,7 +233,6 @@ public class SC_FPSController : MonoBehaviour
         }
     }
 
-    // Detect when the player exits water
     private void OnTriggerExit(Collider other)
     {
         if (other.CompareTag("Water"))

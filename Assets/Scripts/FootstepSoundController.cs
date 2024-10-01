@@ -24,6 +24,8 @@ public class FootstepSoundController : MonoBehaviour
     private float defaultYPos;
     private float bobTimer;
 
+    public SC_FPSController playerController; // Reference to the player's FPS controller for crouching state
+
     // Minimum movement speed required for footstep sound
     public float movementThreshold = 0.2f;
 
@@ -31,7 +33,12 @@ public class FootstepSoundController : MonoBehaviour
     {
         characterController = GetComponent<CharacterController>();
 
-        // Store the default Y position of the Follow Target
+        // Ensure that playerController is assigned, find it if not manually assigned
+        if (playerController == null)
+        {
+            playerController = FindObjectOfType<SC_FPSController>();
+        }
+
         if (followTarget != null)
         {
             defaultYPos = followTarget.localPosition.y;
@@ -49,10 +56,14 @@ public class FootstepSoundController : MonoBehaviour
 
         // Adjust step rate based on whether the player is running or walking
         bool isRunning = Input.GetKey(runKey) && playerSpeed > movementThreshold;
+
+        // Check if the player is crouching via the playerController
+        bool isCrouching = playerController != null && playerController.isCrouching;
+
         float currentStepRate = isInWater ? waterStepRate : (isRunning ? runStepRate : walkStepRate);
 
-        // Only play footsteps if the player is moving faster than the movement threshold
-        if ((characterController.isGrounded || isInWater) && playerSpeed > movementThreshold && stepCooldown <= 0f)
+        // Only play footsteps if the player is moving faster than the movement threshold and not crouching
+        if ((characterController.isGrounded || isInWater) && playerSpeed > movementThreshold && stepCooldown <= 0f && !isCrouching)
         {
             CheckAndPlayFootstep();
             stepCooldown = currentStepRate; // Set cooldown based on walking/running and surface type
@@ -63,8 +74,9 @@ public class FootstepSoundController : MonoBehaviour
             stepCooldown -= Time.deltaTime;
         }
 
-        HandleHeadBobbing(isRunning, playerSpeed > movementThreshold);
+        HandleHeadBobbing(isRunning, playerSpeed > movementThreshold && !isCrouching);
     }
+
 
     void CheckAndPlayFootstep()
     {
