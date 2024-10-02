@@ -9,6 +9,8 @@ public class ComputerCLI : MonoBehaviour
     public InputField inputField;    // The input field for user input
     public float inputDelay = 1f;    // Delay time before input is enabled (in seconds)
 
+    public AudioSource keycardProcessing;
+
     // Security cameras and display
     public GameObject controlRoomCamera;   // Control Room entrance camera in hierarchy
     public GameObject machineCamera;       // Machine camera in hierarchy
@@ -30,9 +32,13 @@ public class ComputerCLI : MonoBehaviour
     private const string correctUsername = "employee";  // The correct username
     private const string correctPassword = "aetheris";  // The correct password
 
+    private bool isConfirmingRewrite = false;  // Track if the player is confirming the rewrite action
+
     private ComputerLogs computerLogs;  // Reference to the ComputerLogs script
 
-    private enum ComputerState { Login, HelpMenu, LogsMenu, SecurityMenu, ViewingLog }
+    private CardInsertScript cardInsertScript;
+
+    private enum ComputerState { Login, HelpMenu, LogsMenu, SecurityMainMenu, CameraMenu, AccessControlMenu, ViewingLog }
     private ComputerState currentState = ComputerState.Login;
     private ComputerState previousState;  // Track the previous state for "back" functionality
 
@@ -54,6 +60,12 @@ public class ComputerCLI : MonoBehaviour
 
         // Disable the input field at the start (since player is not interacting initially)
         DisableInput();
+
+        cardInsertScript = FindObjectOfType<CardInsertScript>();
+        if (cardInsertScript == null)
+        {
+            Debug.LogError("CardInsertScript not found!");
+        }
     }
 
     // Enable input field with delay when player uses the computer
@@ -104,20 +116,34 @@ public class ComputerCLI : MonoBehaviour
             {
                 HandleSecurityCode(input);
             }
-            else if (inSecurityMenu)
-            {
-                HandleSecurityCommands(input);
-            }
             else
             {
-                HandleCommands(input);
+                // Use HandleCommands or specific security handlers based on current state
+                switch (currentState)
+                {
+                    case ComputerState.SecurityMainMenu:
+                        HandleSecurityCommands(input);  // Security options (cameras or access control)
+                        break;
+                    case ComputerState.CameraMenu:
+                        HandleCameraCommands(input);  // Camera-specific commands
+                        break;
+                    case ComputerState.AccessControlMenu:
+                        HandleAccessControlCommands(input);  // Access control commands
+                        break;
+                    default:
+                        HandleCommands(input);  // General command handling (help, logs, etc.)
+                        break;
+                }
             }
 
-            inputField.text = "";
+            inputField.text = ""; // Clear the input field after each input
             inputField.ActivateInputField();
             inputField.Select();
         }
     }
+
+
+
 
     private void HandleLogin(string input)
     {
@@ -166,12 +192,17 @@ public class ComputerCLI : MonoBehaviour
                 terminalOutput.text = "Returning to the main menu.\nType 'help' to see all available commands.\n";
                 currentState = ComputerState.HelpMenu;
             }
-            else if (currentState == ComputerState.SecurityMenu)
+            else if (currentState == ComputerState.CameraMenu || currentState == ComputerState.AccessControlMenu)
             {
-                // Go back to the help menu from the security menu
+                // Go back to the security main menu from either the camera or access control menu
+                EnterSecurityMainMenu();
+            }
+            else if (currentState == ComputerState.SecurityMainMenu)
+            {
+                // Go back to the help menu from the security main menu
                 terminalOutput.text = "Exiting security mode.\nType 'help' to see available commands.\n";
                 currentState = ComputerState.HelpMenu;
-                DeactivateAllCameras();
+                DeactivateAllCameras();  // Ensure cameras are turned off when exiting security
             }
         }
         else if (input.ToLower() == "help")
@@ -214,40 +245,48 @@ public class ComputerCLI : MonoBehaviour
             }
             else
             {
-                terminalOutput.text = "Log not found.\n";
+                terminalOutput.text = "Log not found.\nType 'help' to see available commands.\n";
             }
         }
         else if (input.ToLower() == "security")
         {
-            EnterSecurityMenu();
+            // Correctly route to the security main menu
+            EnterSecurityMainMenu();
         }
         else
         {
-            terminalOutput.text = "Command not recognized.\n";
+            terminalOutput.text = "Command not recognized.\nType 'help' to see available commands.\n";
         }
     }
 
+
+
+    // Handle going back from different states
+    // Handle going back from different states
     private void HandleBackCommand()
     {
         switch (currentState)
         {
-            case ComputerState.LogsMenu:
-            case ComputerState.SecurityMenu:
+            case ComputerState.CameraMenu:
+            case ComputerState.AccessControlMenu:
+                EnterSecurityMainMenu();  // Go back to the Security Main Menu from sub-menus
+                break;
+            case ComputerState.SecurityMainMenu:
+                terminalOutput.text = "Returning to the main menu.\nType 'help' to see all available commands.";
+                currentState = ComputerState.HelpMenu;  // Go back to the Help Menu
+                break;
             case ComputerState.ViewingLog:
-                terminalOutput.text = "Returning to help menu.\nType 'help' to see available commands.";
-                currentState = ComputerState.HelpMenu;
+                DisplayLogMenu();  // Go back to logs menu
+                isViewingLog = false;
+                currentState = ComputerState.LogsMenu;
                 break;
-
-            case ComputerState.HelpMenu:
-                // Can't go back from the help menu
-                terminalOutput.text = "You are already at the main menu. Type 'help' to see available commands.";
-                break;
-
             default:
                 terminalOutput.text = "Cannot go back.";
                 break;
         }
     }
+
+
 
     private void DisplayLogMenu()
     {
@@ -280,44 +319,145 @@ public class ComputerCLI : MonoBehaviour
         isEnteringSecurityCode = false;
     }
 
+    // Security Main Menu (Cameras or Access Control)
+    private void EnterSecurityMainMenu()
+    {
+        isConfirmingRewrite = false;  // Reset the confirmation state
+        terminalOutput.text = "Security options:\n - cameras\n - access control\nType 'back' to return to the main menu.\n";
+        currentState = ComputerState.SecurityMainMenu;
+    }
+
+
     // Security camera menu
-    private void EnterSecurityMenu()
+    private void EnterCameraMenu()
     {
         previousState = currentState; // Track where we came from
-        currentState = ComputerState.SecurityMenu;
+        currentState = ComputerState.CameraMenu;
         inSecurityMenu = true;
         terminalOutput.text = "Select a camera to view:\n - control\n - machine\n - storage\nType 'back' to exit security mode.\n";
         DeactivateAllCameras();  // Disable all cameras when entering the menu
     }
 
+    // Access Control Menu
+    private void EnterAccessControlMenu()
+    {
+        currentState = ComputerState.AccessControlMenu;
+
+        // Display guide text and options for rewriting the keycard and returning to the previous menu
+        terminalOutput.text = "Access Control Menu:\n\n";
+        terminalOutput.text += "This menu allows you to manage the access control system for keycard-enabled doors within the facility. Keycards are used to restrict or grant access to secure areas, and this system provides authorized personnel the ability to rewrite keycard permissions when necessary.\n";
+        terminalOutput.text += "Please ensure that keycards are only rewritten by authorized individuals, and that all changes comply with company security protocols.\n\n";
+        terminalOutput.text += "Instructions:\n";
+        terminalOutput.text += "Ensure that the keycard is properly inserted into the card reader before proceeding.\n";
+        terminalOutput.text += "Rewriting a keycard will overwrite its current access permissions with the new configuration.\n\n";
+        terminalOutput.text += "\nType 'rewrite keycard' to rewrite the keycard.\n";
+        terminalOutput.text += "Type 'back' to return to the security menu.\n";
+    }
+
+    private void HandleCameraCommands(string input)
+    {
+        if (input.ToLower() == "back")
+        {
+            // Deactivate all cameras and clear the display when going back
+            DeactivateAllCameras();  // This function will deactivate the cameras and clear the screen
+            EnterSecurityMainMenu(); // Go back to the security main menu
+        }
+        else if (input.ToLower() == "control")
+        {
+            // Activate control room camera
+            ActivateCamera(0, controlRoomTexture, controlRoomCamera, "Control Room camera active.");
+        }
+        else if (input.ToLower() == "machine")
+        {
+            // Activate machine camera
+            ActivateCamera(1, machineTexture, machineCamera, "Machine camera active.");
+        }
+        else if (input.ToLower() == "storage")
+        {
+            // Activate storage camera
+            ActivateCamera(2, storageTexture, storageCamera, "Storage camera active.");
+        }
+        else
+        {
+            terminalOutput.text = "Invalid camera selection. Type 'back' to return to the camera menu.\n";
+        }
+    }
 
     private void HandleSecurityCommands(string input)
     {
         if (input.ToLower() == "back")
         {
-            inSecurityMenu = false;
-            terminalOutput.text = "Returning to the main menu.\nType 'help' to see available commands.\n";
-            currentState = ComputerState.HelpMenu; // Return to the help menu
-            DeactivateAllCameras();  // Disable cameras when exiting
+            HandleBackCommand();  // Go back to the main menu
         }
-        else if (input.ToLower() == "control")
+        else if (input.ToLower() == "cameras")
         {
-            ActivateCamera(0, controlRoomTexture, controlRoomCamera, "Control Room entrance camera active.");
+            EnterCameraMenu();  // Enter the camera menu
         }
-        else if (input.ToLower() == "machine")
+        else if (input.ToLower() == "access control")
         {
-            ActivateCamera(1, machineTexture, machineCamera, "Machine camera active.");
-        }
-        else if (input.ToLower() == "storage")
-        {
-            ActivateCamera(2, storageTexture, storageCamera, "Storage camera active.");
+            EnterAccessControlMenu();  // Enter the access control menu
         }
         else
         {
-            terminalOutput.text = "Invalid selection. Type 'back' to return to the main menu.\n";
+            terminalOutput.text = "Invalid selection. Type 'back' to return to the security menu.\n";
         }
     }
 
+    // Handle Access Control Commands (rewriting keycard here)
+    private void HandleAccessControlCommands(string input)
+    {
+        if (isConfirmingRewrite)
+        {
+            // Handle confirmation response
+            if (input.ToLower() == "yes")
+            {
+                if (cardInsertScript != null && cardInsertScript.HasInsertedKeycard())
+                {
+                    cardInsertScript.MarkKeycardAsRewritten();
+                    terminalOutput.text = "Keycard has been rewritten successfully.\nType 'back' to return to the security menu.\n";
+                    StartKeycardProcessingSound();
+                }
+                else
+                {
+                    terminalOutput.text = "No keycard detected in the reader.\n";
+                }
+                isConfirmingRewrite = false;  // Exit confirmation state
+            }
+            else if (input.ToLower() == "no")
+            {
+                terminalOutput.text = "Keycard rewrite operation cancelled.\n";
+                isConfirmingRewrite = false;  // Exit confirmation state
+            }
+            else
+            {
+                terminalOutput.text = "Invalid response. Type 'yes' to proceed or 'no' to cancel.\n";
+            }
+        }
+        else
+        {
+            if (input.ToLower() == "back")
+            {
+                EnterSecurityMainMenu();  // Return to the security main menu
+            }
+            else if (input.ToLower().Trim() == "rewrite keycard")
+            {
+                if (cardInsertScript != null && cardInsertScript.HasInsertedKeycard())
+                {
+                    // Ask for confirmation
+                    terminalOutput.text = "Are you sure you want to rewrite this keycard?\n\nType 'yes' to proceed, type 'no' to cancel.\n";
+                    isConfirmingRewrite = true;  // Set the confirmation state
+                }
+                else
+                {
+                    terminalOutput.text = "No keycard detected in the reader.\nType 'back' to return to the security menu.\n";
+                }
+            }
+            else
+            {
+                terminalOutput.text = "Invalid selection. Type 'back' to return to the security menu.\n";
+            }
+        }
+    }
 
     // Activate a specific camera
     private void ActivateCamera(int cameraIndex, RenderTexture texture, GameObject cameraObject, string message)
@@ -339,5 +479,14 @@ public class ComputerCLI : MonoBehaviour
         securityDisplay.enabled = false;
         securityDisplay.texture = null;  // Clear the RawImage display
         currentCameraIndex = -1;  // No camera is currently active
+    }
+
+    // Keycard Processing Sound
+    void StartKeycardProcessingSound()
+    {
+        if (keycardProcessing != null)
+        {
+            keycardProcessing.Play();  // Start playing the keycard processing sound
+        }
     }
 }

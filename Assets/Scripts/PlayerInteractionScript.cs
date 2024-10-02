@@ -84,6 +84,18 @@ public class PlayerInteraction : MonoBehaviour
                     ShowInteractionText(computerInteractionText, "Use computer: [LMB]");
                     HandleComputerInteraction(hit);
                 }
+                // Check if it's a keycard
+                else if (hit.collider.CompareTag("Keycard"))
+                {
+                    ShowInteractionText(pickupInteractionText, "Pick up item: [E]");
+                    HandlePickupInteraction(hit);
+                }
+                // Check if it's a keycard
+                else if (hit.collider.CompareTag("RewrittenKeycard"))
+                {
+                    ShowInteractionText(pickupInteractionText, "Pick up item: [E]");
+                    HandlePickupInteraction(hit);
+                }
                 // Check if it's a radiation suit
                 else if (hit.collider.CompareTag("RadiationSuit"))
                 {

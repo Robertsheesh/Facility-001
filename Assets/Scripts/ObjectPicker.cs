@@ -15,6 +15,12 @@ public class ObjectPicker : MonoBehaviour
 
     private bool isFlashlight = false;  // Track if the picked-up object is a flashlight
 
+    [Header("Keycard Settings")]
+    public Vector3 keycardPositionOffset = new Vector3(0.2f, -0.3f, 1.0f); // Position offset for the keycard
+    public Vector3 keycardRotationOffset = new Vector3(0f, 90f, 0f);       // Rotation offset for the keycard
+    private bool isKeycard = false;     // Track if the picked-up object is a keycard
+    private bool isRewrittenKeycard = false;  // Track if the picked-up object is a rewritten keycard
+
     public AudioSource flashlightSound;
 
     void Update()
@@ -59,6 +65,19 @@ public class ObjectPicker : MonoBehaviour
                     ToggleFlashlight();
                 }
             }
+            else if (isKeycard || isRewrittenKeycard)
+            {
+                // Custom positioning for the keycard with configurable offsets
+                Vector3 holdPosition = playerCamera.transform.position
+                                       + playerCamera.transform.forward * keycardPositionOffset.z
+                                       + playerCamera.transform.right * keycardPositionOffset.x
+                                       + playerCamera.transform.up * keycardPositionOffset.y;
+
+                pickedUpObject.transform.position = holdPosition;
+
+                // Apply the rotation offset to the keycard, using the camera's rotation as a base
+                pickedUpObject.transform.rotation = playerCamera.transform.rotation * Quaternion.Euler(keycardRotationOffset);
+            }
             else
             {
                 // For non-flashlight objects, use standard positioning and rotation
@@ -83,8 +102,8 @@ public class ObjectPicker : MonoBehaviour
 
         if (Physics.Raycast(ray, out hit, pickupRange))
         {
-            // Check if the hit object is tagged as "Pickup" or "Flashlight"
-            if (hit.collider.CompareTag("Pickup") || hit.collider.CompareTag("Flashlight"))
+            // Check if the hit object is tagged as "Pickup", "Flashlight", "Keycard", or "RewrittenKeycard"
+            if (hit.collider.CompareTag("Pickup") || hit.collider.CompareTag("Flashlight") || hit.collider.CompareTag("Keycard") || hit.collider.CompareTag("RewrittenKeycard"))
             {
                 PickUpObject(hit.collider.gameObject);
             }
@@ -96,21 +115,48 @@ public class ObjectPicker : MonoBehaviour
     {
         pickedUpObject = obj;
 
+        // Reset all flags
+        isFlashlight = false;
+        isKeycard = false;
+        isRewrittenKeycard = false;
+
         // Check if it's a flashlight and store the result in isFlashlight
         isFlashlight = pickedUpObject.CompareTag("Flashlight");
+
+        // Check if it's a keycard and store the result in isKeycard
+        isKeycard = pickedUpObject.CompareTag("Keycard");
+
+        // Check if it's a rewritten keycard and store the result in isRewrittenKeycard
+        isRewrittenKeycard = pickedUpObject.CompareTag("RewrittenKeycard");
+
+        Debug.Log("Picked up: " + pickedUpObject.name);
+        Debug.Log("isFlashlight: " + isFlashlight + ", isKeycard: " + isKeycard + ", isRewrittenKeycard: " + isRewrittenKeycard);
 
         // Disable physics while holding the object
         Rigidbody rb = obj.GetComponent<Rigidbody>();
         if (rb != null)
         {
             rb.isKinematic = true; // Disable physics so it doesn't fall or collide
+            Debug.Log("Rigidbody set to kinematic: " + rb.isKinematic);
+        }
+        else
+        {
+            Debug.LogError("Rigidbody is missing on object: " + obj.name);
         }
 
-        // Disable the collider to prevent the object from pushing the player
-        Collider objCollider = obj.GetComponent<Collider>();
-        if (objCollider != null)
+        // Disable all colliders to prevent object from interacting with the environment
+        Collider[] colliders = obj.GetComponents<Collider>(); // Get all colliders attached to the object
+        if (colliders.Length > 0)
         {
-            objCollider.enabled = false;  // Disable collider while holding
+            foreach (Collider collider in colliders)
+            {
+                collider.enabled = false;  // Disable each collider
+                Debug.Log("Disabled collider: " + collider);
+            }
+        }
+        else
+        {
+            Debug.LogError("No colliders found on object: " + obj.name);
         }
 
         // Set the object's position manually relative to the camera, not as a child
@@ -133,6 +179,11 @@ public class ObjectPicker : MonoBehaviour
             // Ensure the flashlight is aligned with the camera and applies custom offsets
             obj.transform.rotation = playerCamera.transform.rotation * Quaternion.Euler(flashlightRotationOffset);
         }
+        else if (isKeycard || isRewrittenKeycard)
+        {
+            // Custom handling for the keycard
+            obj.transform.rotation = playerCamera.transform.rotation * Quaternion.Euler(keycardRotationOffset);
+        }
         else
         {
             // Make sure the object stays upright and doesn't rotate with the camera's pitch
@@ -150,6 +201,7 @@ public class ObjectPicker : MonoBehaviour
             if (rb != null)
             {
                 rb.isKinematic = false; // Re-enable physics
+                rb.useGravity = true;    // Ensure gravity is applied so it falls
             }
 
             // Re-enable the collider when dropping the object
@@ -163,6 +215,8 @@ public class ObjectPicker : MonoBehaviour
 
             pickedUpObject = null;  // Clear the reference to the object so it stops floating
             isFlashlight = false;   // Reset the flashlight flag
+            isKeycard = false;      // Reset the keycard flag
+            isRewrittenKeycard = false; // Reset the rewritten keycard flag
             flashlightLight = null; // Clear flashlight reference
         }
     }
