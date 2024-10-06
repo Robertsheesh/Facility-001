@@ -1,13 +1,11 @@
 using UnityEngine;
 
-public class CardInsertScript : MonoBehaviour
+public class CardInsertScript : MonoBehaviour, IInteractable
 {
     public Transform cardInsertPoint; // The point where the keycard will be placed inside the reader
     private ObjectPicker objectPicker; // Reference to the player's ObjectPicker script
-
     private GameObject insertedKeycard = null;  // Track the inserted keycard
     public AudioSource CardInsertSound;
-
     public MusicManager musicManager; // Reference to the MusicManager
 
     void Start()
@@ -21,30 +19,25 @@ public class CardInsertScript : MonoBehaviour
         }
     }
 
-    private void OnTriggerStay(Collider other)
+    // This is the Interact method from IInteractable, called when the player interacts with the object
+    public void Interact()
     {
-        // Check if the player is in the trigger zone and pressing E
-        if (other.CompareTag("Player") && objectPicker != null)
+        if (objectPicker != null)
         {
-            if (Input.GetKeyDown(KeyCode.E))
+            // Check if the player is holding the keycard
+            if (objectPicker.pickedUpObject != null && objectPicker.pickedUpObject.CompareTag("Keycard"))
             {
-                Debug.Log("Player pressed E while in the card insert zone.");
-
-                // Check if the player is holding the keycard
-                if (objectPicker.pickedUpObject != null && objectPicker.pickedUpObject.CompareTag("Keycard"))
-                {
-                    Debug.Log("Keycard detected in hand. Attempting to insert...");
-                    InsertKeycard();
-                }
-                else if (insertedKeycard != null)
-                {
-                    Debug.Log("Picking up the rewritten keycard.");
-                    PickUpRewrittenKeycard();
-                }
-                else
-                {
-                    Debug.Log("No keycard detected in player's hand.");
-                }
+                Debug.Log("Keycard detected in hand. Attempting to insert...");
+                InsertKeycard();
+            }
+            else if (insertedKeycard != null)
+            {
+                Debug.Log("Picking up the rewritten keycard.");
+                PickUpRewrittenKeycard();
+            }
+            else
+            {
+                Debug.Log("No keycard detected in player's hand.");
             }
         }
     }
@@ -78,7 +71,6 @@ public class CardInsertScript : MonoBehaviour
         StartCardInsertSound();
     }
 
-    // This method will be called by the ComputerCLI to check if a keycard is inserted
     public bool HasInsertedKeycard()
     {
         return insertedKeycard != null; // Return true if there's a keycard inserted
@@ -133,5 +125,4 @@ public class CardInsertScript : MonoBehaviour
             CardInsertSound.Play();  // Start playing the door sound
         }
     }
-
 }

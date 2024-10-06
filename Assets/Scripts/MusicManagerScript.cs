@@ -17,7 +17,7 @@ public class MusicManager : MonoBehaviour
     {
         if (audioSource != null && ambientMusic != null)
         {
-            audioSource.volume = 0.35f; // Set initial volume
+            audioSource.volume = 0.4f; // Set initial volume
             StartCoroutine(FadeInMusic(ambientMusic));
         }
     }
@@ -60,7 +60,7 @@ public class MusicManager : MonoBehaviour
 
         // Ensure final volumes are set
         audioSource.volume = 0;
-        newAudioSource.volume = 0.35f;
+        newAudioSource.volume = 0.4f;
 
         // Stop the current track
         audioSource.Stop();
@@ -79,7 +79,7 @@ public class MusicManager : MonoBehaviour
         audioSource.volume = 0;
         audioSource.Play();
 
-        float targetVolume = 0.35f;
+        float targetVolume = 0.4f;
         float elapsedTime = 0;
         while (elapsedTime < fadeDuration)
         {

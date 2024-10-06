@@ -295,20 +295,20 @@ MonoBehaviour:
     value: 1000
   ColorDepth:
     overrideState: 1
-    value: 0.17
+    value: 0.2
   DitherPattern:
     overrideState: 1
-    value: {fileID: 0}
+    value: {fileID: 2800000, guid: 2bab58d6916f2254a88c7a288552d740, type: 3}
     defaultState: 0
   DitherPatternScale:
     overrideState: 1
     value: 1
   DitherThreshold:
     overrideState: 1
-    value: 0.636
+    value: 0.12
   DitherIntensity:
     overrideState: 1
-    value: 0.777
+    value: 0.145
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -425,7 +425,7 @@ MonoBehaviour:
     value: 0
   saturation:
     overrideState: 1
-    value: -20
+    value: -55
   brightness:
     overrideState: 1
     value: 0

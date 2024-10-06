@@ -1,7 +1,7 @@
 using UnityEngine;
 using System.Collections;
 
-public class CardReaderScript : MonoBehaviour
+public class CardReaderScript : MonoBehaviour, IInteractable
 {
     public Transform cardInsertPoint;  // Where the card is inserted
     private ObjectPicker objectPicker; // Reference to the player's ObjectPicker script
@@ -11,7 +11,7 @@ public class CardReaderScript : MonoBehaviour
     public float openDelay = 1f;       // Delay before the door opens
     private bool doorOpened = false;   // Track if the door has been opened
     private GameObject insertedKeycard = null;  // Track the inserted keycard
-
+    public Light StorageDoorLight;
 
     void Start()
     {
@@ -26,22 +26,23 @@ public class CardReaderScript : MonoBehaviour
         doorAnimator.SetBool("IsOpen", false);
     }
 
-    private void OnTriggerStay(Collider other)
+    // This is the Interact method from IInteractable, called when the player interacts with the object
+    public void Interact()
     {
-        // Check if the player is in the trigger zone and pressing E
-        if (other.CompareTag("Player") && objectPicker != null)
+        // Check if the player is holding a rewritten keycard
+        if (objectPicker != null)
         {
-            if (Input.GetKeyDown(KeyCode.E))
+            if (objectPicker.pickedUpObject != null && objectPicker.pickedUpObject.CompareTag("RewrittenKeycard"))
             {
-                // Check if the player is holding a rewritten keycard
-                if (objectPicker.pickedUpObject != null && objectPicker.pickedUpObject.CompareTag("RewrittenKeycard"))
-                {
-                    InsertKeycard();
-                }
-                else if (insertedKeycard != null)
-                {
-                    PickUpInsertedKeycard();
-                }
+                InsertKeycard();
+            }
+            else if (insertedKeycard != null)
+            {
+                PickUpInsertedKeycard();
+            }
+            else
+            {
+                Debug.Log("No keycard in hand or in reader.");
             }
         }
     }
@@ -107,6 +108,7 @@ public class CardReaderScript : MonoBehaviour
     {
         Debug.Log("Opening door...");
         StartCoroutine(OpenDoorWithDelay());  // Start the coroutine to open the door with a delay
+        StorageDoorLight.color = Color.green;
     }
 
     // Coroutine to handle the door opening after the delay
