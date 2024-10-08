@@ -33,14 +33,28 @@ public class ElevatorController : MonoBehaviour
     // Method to open the doors
     public void OpenDoors()
     {
-        Debug.Log("Elevator doors opening...");
+        Debug.Log("Attempting to open elevator doors...");
 
-        doorAnimator.SetBool("IsOpen", true);  // Trigger the door opening animation
+        if (doorAnimator == null)
+        {
+            Debug.LogError("Door Animator is not assigned!");
+            return;
+        }
+
+        // Ensure the parameter exists and set it to true to open the doors
+        doorAnimator.SetBool("IsOpen", true);
+
+        Debug.Log("Set IsOpen parameter to true. Playing door opening animation.");
 
         // Play the door opening sound
         if (doorOpenSound != null)
         {
             doorOpenSound.Play();
+            Debug.Log("Playing door opening sound.");
+        }
+        else
+        {
+            Debug.LogWarning("No door opening sound assigned.");
         }
     }
 
@@ -51,7 +65,10 @@ public class ElevatorController : MonoBehaviour
 
         doorAnimator.SetBool("IsOpen", false);  // Trigger the door closing animation
 
-        doorCloseSound.Play();
-
+        // Play the door closing sound
+        if (doorCloseSound != null)
+        {
+            doorCloseSound.Play();
+        }
     }
 }

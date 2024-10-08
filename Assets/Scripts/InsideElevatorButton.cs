@@ -7,6 +7,7 @@ public class InsideElevatorButton : MonoBehaviour, IInteractable
     public AudioSource buttonSound;           // Optional: Sound for when the button is pressed
     public AudioSource elevatorMovingSound;   // Sound to play when the elevator is moving
     public float moveDelay = 2f;              // Delay before the elevator starts moving
+    public float elevatorTravelTime = 26f;    // Time it takes for the elevator to reach its destination
     private bool buttonPressed = false;       // Track if the button has been pressed
 
     public Animator elevatorAnimator;         // Animator to control the elevator movement (upward animation)
@@ -55,17 +56,15 @@ public class InsideElevatorButton : MonoBehaviour, IInteractable
         // Start the elevator movement (trigger animation)
         StartElevatorMovement();
 
-        // Wait for the elevator to reach its destination, then open the doors
-        yield return new WaitUntil(() => ElevatorHasReachedDestination());
-
-        // Stop the elevator moving sound when the elevator reaches the destination
-        if (elevatorMovingSound != null && elevatorMovingSound.isPlaying)
-        {
-            elevatorMovingSound.Stop();
-        }
+        // Wait for the duration of the elevator travel time before opening the doors
+        yield return new WaitForSeconds(elevatorTravelTime);
 
         // After the movement, open the doors
         OpenElevatorDoors();
+        Debug.Log("Opening elevator doors at destination");
+
+        // Unparent the player after the elevator has stopped and doors are open
+        UnparentPlayer();
     }
 
     void StartElevatorMovement()
@@ -89,11 +88,21 @@ public class InsideElevatorButton : MonoBehaviour, IInteractable
         elevator.OpenDoors();
     }
 
-    // Helper method to determine when the elevator has finished moving
-    private bool ElevatorHasReachedDestination()
+    void UnparentPlayer()
     {
-        // Check if the elevator movement animation has finished
-        return elevatorAnimator.GetCurrentAnimatorStateInfo(0).IsName("ElevatorIdleAtDestination");
+        // Unparent the player and re-enable physics
+        if (player != null)
+        {
+            player.transform.SetParent(null);  // Reset the player's parent to null
+
+            // Re-enable the player's Rigidbody physics
+            if (playerRigidbody != null)
+            {
+                playerRigidbody.isKinematic = false;  // Make the player's Rigidbody non-kinematic again
+            }
+
+            Debug.Log("Player is unparented from the elevator and Rigidbody physics is restored.");
+        }
     }
 
     // Assign the player when the button script is loaded
