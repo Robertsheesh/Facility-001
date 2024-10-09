@@ -1,0 +1,104 @@
+newmtl Meshesmonitor1Mtl
+Material Color
+Ka 1 1 1
+Kd 1 1 1
+Ks 0.4 0.4 0.4 
+
+d 1
+
+Ns 9
+
+map_Ka Meshesmonitor1Tex.png
+map_Kd Meshesmonitor1Tex.png
+map_d Meshesmonitor1Tex.png
+
+newmtl Part6Mtl
+Material Color
+Ka 1 1 1
+Kd 1 1 1
+Ks 0.74902 0.74902 0.74902 
+
+d 1
+
+Ns 81
+
+map_Ka Part6Tex.png
+map_Kd Part6Tex.png
+map_d Part6Tex.png
+
+newmtl Mesheskeyboard1Mtl
+Material Color
+Ka 1 1 1
+Kd 1 1 1
+Ks 0.4 0.4 0.4 
+
+d 1
+
+Ns 9
+
+map_Ka Mesheskeyboard1Tex.png
+map_Kd Mesheskeyboard1Tex.png
+map_d Mesheskeyboard1Tex.png
+
+newmtl Part5Mtl
+Material Color
+Ka 0.373615 0.368591 0.383775
+Kd 0.373615 0.368591 0.383775
+Ks 0.279845 0.276082 0.287455 
+
+d 1
+
+Ns 81
+
+newmtl OfficeSeat1Mtl
+Material Color
+Ka 1 1 1
+Kd 1 1 1
+Ks 0.4 0.4 0.4 
+
+d 1
+
+Ns 9
+
+map_Ka OfficeSeat1Tex.png
+map_Kd OfficeSeat1Tex.png
+map_d OfficeSeat1Tex.png
+
+newmtl Part2Mtl
+Material Color
+Ka 1 1 1
+Kd 1 1 1
+Ks 0.8 0.8 0.8 
+
+d 1
+
+Ns 120
+
+map_Ka Part2Tex.png
+map_Kd Part2Tex.png
+map_d Part2Tex.png
+
+newmtl Part4Mtl
+Material Color
+Ka 1 1 1
+Kd 1 1 1
+Ks 0.8 0.8 0.8 
+
+d 1
+
+Ns 120
+
+map_Ka Part4Tex.png
+map_Kd Part4Tex.png
+map_d Part4Tex.png
+
+newmtl Union1Mtl
+Material Color
+Ka 0.373615 0.368591 0.383775
+Kd 0.373615 0.368591 0.383775
+Ks 0.298892 0.294873 0.30702 
+
+d 1
+
+Ns 120
+
