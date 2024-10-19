@@ -82,19 +82,13 @@ public class CardReaderScript : MonoBehaviour, IInteractable
 
     void PickUpInsertedKeycard()
     {
-        Debug.Log("Player picked up the inserted keycard.");
+        if (insertedKeycard == null)
+        {
+            Debug.LogError("Inserted keycard is null in PickUpInsertedKeycard");
+            return;  // Prevent further code from running if keycard is not inserted
+        }
 
-        // Re-enable physics and collider for the keycard when picked up
-        Rigidbody rb = insertedKeycard.GetComponent<Rigidbody>();
-        if (rb != null)
-        {
-            rb.isKinematic = false;  // Re-enable physics
-        }
-        Collider objCollider = insertedKeycard.GetComponent<Collider>();
-        if (objCollider != null)
-        {
-            objCollider.enabled = true;  // Re-enable collider
-        }
+        Debug.Log("Player picked up the inserted keycard.");
 
         // Allow the player to pick up the keycard
         objectPicker.pickedUpObject = insertedKeycard;
@@ -102,6 +96,7 @@ public class CardReaderScript : MonoBehaviour, IInteractable
 
         StartCardInsertSound();
     }
+
 
     // Method to open the door with a delay
     public void OpenDoor()

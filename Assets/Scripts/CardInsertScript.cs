@@ -8,6 +8,10 @@ public class CardInsertScript : MonoBehaviour, IInteractable
     public AudioSource CardInsertSound;
     public MusicManager musicManager; // Reference to the MusicManager
 
+   public bool isKeycardInserted = false; // Track if the keycard is currently inserted
+
+
+
     void Start()
     {
         // Find the player's ObjectPicker script
@@ -44,32 +48,34 @@ public class CardInsertScript : MonoBehaviour, IInteractable
 
     void InsertKeycard()
     {
-        Debug.Log("Inserting keycard.");
+        if (insertedKeycard != null || isKeycardInserted) return; // Prevent double insertion or re-insertion
 
-        // Position the keycard at the insertion point
+        Debug.Log("Inserting keycard.");
         insertedKeycard = objectPicker.pickedUpObject;
         insertedKeycard.transform.position = cardInsertPoint.position;
         insertedKeycard.transform.rotation = cardInsertPoint.rotation;
 
-        // Disable physics and collider for the keycard once it's inserted
         Rigidbody rb = insertedKeycard.GetComponent<Rigidbody>();
         if (rb != null)
         {
-            rb.isKinematic = true; // Disable physics
+            rb.isKinematic = true; // Disable physics for the inserted card
         }
 
-        Collider objCollider = insertedKeycard.GetComponent<Collider>();
-        if (objCollider != null)
-        {
-            objCollider.enabled = false; // Disable collider
-        }
+        DisableColliders(insertedKeycard);  // Disable the colliders
 
-        // Clear the reference to the picked-up object so the player is no longer holding it
-        objectPicker.pickedUpObject = null;
+        // Remove keycard from inventory and flag it as unavailable
+        objectPicker.RemoveItemFromInventory(insertedKeycard);
 
-        Debug.Log("Card successfully inserted into the reader!");
+        objectPicker.pickedUpObject = null;  // Unequip the keycard
+
+        isKeycardInserted = true; // Mark the keycard as inserted
+        Debug.Log("Keycard successfully inserted into the reader!");
         StartCardInsertSound();
     }
+
+
+
+
 
     public bool HasInsertedKeycard()
     {
@@ -89,27 +95,27 @@ public class CardInsertScript : MonoBehaviour, IInteractable
     {
         if (insertedKeycard != null && insertedKeycard.CompareTag("RewrittenKeycard"))
         {
-            Debug.Log("Player picked up the rewritten keycard.");
+            Debug.Log("Player picked up the inserted keycard.");
 
-            // Re-enable physics and collider for the keycard when picked up
-            Rigidbody rb = insertedKeycard.GetComponent<Rigidbody>();
-            if (rb != null)
+            insertedKeycard.transform.SetParent(null); // Unparent it from the reader
+
+            // Only enable the necessary colliders (not the box collider)
+            Collider[] colliders = insertedKeycard.GetComponentsInChildren<Collider>(true);
+            foreach (Collider collider in colliders)
             {
-                rb.isKinematic = false; // Re-enable physics
+                if (!(collider is BoxCollider)) // Ensure the box collider remains disabled
+                {
+                    collider.enabled = true;
+                }
             }
 
-            Collider objCollider = insertedKeycard.GetComponent<Collider>();
-            if (objCollider != null)
-            {
-                objCollider.enabled = true; // Re-enable collider
-            }
-
-            // Allow the player to pick up the rewritten keycard
-            objectPicker.pickedUpObject = insertedKeycard;
+            objectPicker.PickUpObject(insertedKeycard);  // Use ObjectPicker to pick up the object again
             insertedKeycard = null;  // Clear the reference once picked up
+
+            objectPicker.SelectItemInInventory(objectPicker.pickedUpObject);  // Equip the keycard immediately
             StartCardInsertSound();
 
-            // Change music when keycard is picked up
+            // Update the state of music, or other actions
             if (musicManager != null)
             {
                 musicManager.SwitchToNewTrack();
@@ -117,6 +123,27 @@ public class CardInsertScript : MonoBehaviour, IInteractable
             }
         }
     }
+
+
+
+    private void DisableColliders(GameObject obj)
+    {
+        Collider[] colliders = obj.GetComponentsInChildren<Collider>(true);
+        foreach (Collider collider in colliders)
+        {
+            collider.enabled = false; // Disable each collider
+        }
+    }
+
+    private void EnableColliders(GameObject obj)
+    {
+        Collider[] colliders = obj.GetComponentsInChildren<Collider>(true);
+        foreach (Collider collider in colliders)
+        {
+            collider.enabled = true; // Re-enable each collider
+        }
+    }
+
 
     void StartCardInsertSound()
     {
