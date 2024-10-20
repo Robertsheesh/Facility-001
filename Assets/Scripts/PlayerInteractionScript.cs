@@ -18,11 +18,16 @@ public class PlayerInteraction : MonoBehaviour
     public Text flashlightInteractionText;
     public Text computerInteractionText;
     public Text radiationSuitInteractionText;
+    public Text crowBarInteractionText;
+    public Text keyCardInteractionText;
 
-    private void Start()
+    public GameObject ThrowUI;
+
+    public void Start()
     {
         // Initially hide all interaction texts
         HideAllInteractionTexts();
+        ThrowUI.SetActive(false);
     }
 
     void Update()
@@ -39,7 +44,7 @@ public class PlayerInteraction : MonoBehaviour
                 // Check if it's a door
                 if (hit.collider.CompareTag("Door"))
                 {
-                    ShowInteractionText(doorInteractionText, "Open locker: [E]");
+                    ShowInteractionText(doorInteractionText, "Interact: [E]");
                     HandleDoorInteraction(hit);
                 }
                 // Check if it's a button
@@ -87,20 +92,26 @@ public class PlayerInteraction : MonoBehaviour
                 // Check if it's a keycard
                 else if (hit.collider.CompareTag("Keycard"))
                 {
-                    ShowInteractionText(pickupInteractionText, "Pick up item: [E]");
-                    HandlePickupInteraction(hit);
+                    ShowInteractionText(keyCardInteractionText, "Pick up keycard: [E]");
+                    HandlekeyCardInteraction(hit);
                 }
                 // Check if it's a keycard
                 else if (hit.collider.CompareTag("RewrittenKeycard"))
                 {
-                    ShowInteractionText(pickupInteractionText, "Pick up item: [E]");
-                    HandlePickupInteraction(hit);
+                    ShowInteractionText(keyCardInteractionText, "Pick up keycard: [E]");
+                    HandlekeyCardInteraction(hit);
                 }
                 // Check if it's a radiation suit
                 else if (hit.collider.CompareTag("RadiationSuit"))
                 {
                     ShowInteractionText(radiationSuitInteractionText, "Pick up radiation suit: [E]");
                     HandleRadiationSuitInteraction(hit);
+                }
+                // Check if it's a crowbar
+                else if (hit.collider.CompareTag("Crowbar"))
+                {
+                    ShowInteractionText(crowBarInteractionText, "Pick up crowbar: [E]");
+                    HandlecrowBarInteraction(hit);
                 }
                 else
                 {
@@ -208,8 +219,24 @@ public class PlayerInteraction : MonoBehaviour
         }
     }
 
+    void HandlecrowBarInteraction(RaycastHit hit)
+    {
+        if (Input.GetKeyDown(KeyCode.E))
+        {
+            Debug.Log("Picking up crowbar: " + hit.collider.name);
+        }
+    }
+
+    void HandlekeyCardInteraction(RaycastHit hit)
+    {
+        if (Input.GetKeyDown(KeyCode.E))
+        {
+            Debug.Log("Picking up keycard: " + hit.collider.name);
+        }
+    }
+
     // Show the appropriate interaction text
-    void ShowInteractionText(Text interactionText, string message)
+   public void ShowInteractionText(Text interactionText, string message)
     {
         HideAllInteractionTexts(); // Hide all other texts first
         interactionText.text = message;
@@ -217,7 +244,7 @@ public class PlayerInteraction : MonoBehaviour
     }
 
     // Hide all interaction texts
-    void HideAllInteractionTexts()
+    public void HideAllInteractionTexts()
     {
         doorInteractionText.enabled = false;
         buttonInteractionText.enabled = false;
@@ -226,7 +253,22 @@ public class PlayerInteraction : MonoBehaviour
         fuelInteractionText.enabled = false;
         leverInteractionText.enabled = false;
         flashlightInteractionText.enabled = false;
-        computerInteractionText.enabled = false;
+        computerInteractionText.enabled = false;  // This should hide the computer interaction text
         radiationSuitInteractionText.enabled = false;
+        crowBarInteractionText.enabled = false;
+        keyCardInteractionText.enabled = false;
     }
+
+    // Call this method when an object is picked up
+    public void ShowPickupUI()
+    {
+        ThrowUI.SetActive(true);
+    }
+
+    // Call this method when an object is dropped or no longer held
+    public void HidePickupUI()
+    {
+        ThrowUI.SetActive(false);
+    }
+
 }

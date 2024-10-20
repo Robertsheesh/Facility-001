@@ -70,8 +70,12 @@ public class CardReaderScript : MonoBehaviour, IInteractable
             objCollider.enabled = false;  // Disable collider
         }
 
+        // Remove the keycard from the player's inventory
+        objectPicker.RemoveItemFromInventory(insertedKeycard);
+
         // Clear the reference to the picked-up object so the player is no longer holding it
         objectPicker.pickedUpObject = null;
+        objectPicker.isKeycard = false;  // Reset keycard flag
 
         // Open the door
         OpenDoor();
@@ -90,12 +94,50 @@ public class CardReaderScript : MonoBehaviour, IInteractable
 
         Debug.Log("Player picked up the inserted keycard.");
 
-        // Allow the player to pick up the keycard
-        objectPicker.pickedUpObject = insertedKeycard;
-        insertedKeycard = null;  // Clear the reference once picked up
+        // Deactivate the flashlight if it's equipped
+        if (objectPicker.isFlashlight && objectPicker.flashlightObject != null)
+        {
+            objectPicker.flashlightObject.SetActive(false);  // Deactivate the flashlight
+            objectPicker.flashlightLight = null;  // Clear the flashlight reference
+            objectPicker.isFlashlight = false;   // Reset the flashlight flag
+        }
 
-        StartCardInsertSound();
+        // Deactivate the crowbar if it's equipped
+        if (objectPicker.isCrowbar && objectPicker.pickedUpObject != null && objectPicker.pickedUpObject.CompareTag("Crowbar"))
+        {
+            objectPicker.pickedUpObject.SetActive(false);  // Deactivate the crowbar
+            objectPicker.isCrowbar = false;  // Reset the crowbar flag
+        }
+
+        // Directly assign the keycard to the player's hand
+        objectPicker.pickedUpObject = insertedKeycard;
+
+        objectPicker.AddItemToInventory(insertedKeycard);  // Add keycard to inventory
+
+        // Disable physics and colliders for the keycard, so it doesn't interact with the environment
+        Rigidbody rb = objectPicker.pickedUpObject.GetComponent<Rigidbody>();
+        if (rb != null)
+        {
+            rb.isKinematic = true;  // Disable physics
+        }
+        Collider[] colliders = objectPicker.pickedUpObject.GetComponentsInChildren<Collider>();
+        foreach (Collider collider in colliders)
+        {
+            collider.enabled = false;  // Disable all colliders
+        }
+
+        // Ensure the keycard is active
+        objectPicker.pickedUpObject.SetActive(true);
+
+        // Set the flags to track that the player is holding a keycard
+        objectPicker.isKeycard = true;
+
+        // Clear the inserted keycard reference from the keycard reader
+        insertedKeycard = null;
+
+        StartCardInsertSound();  // Play the sound effect for picking up the keycard
     }
+
 
 
     // Method to open the door with a delay

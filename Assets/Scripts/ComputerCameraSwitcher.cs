@@ -17,6 +17,9 @@ public class ComputerInteraction : MonoBehaviour
     private bool interactionInProgress = false;      // To prevent interaction spamming
     private bool isPlayerInRange = false;            // Track if player is within the trigger range
 
+    public PlayerInteraction PlayerInteractionScript; // Reference to your PlayerInteraction script
+    public GameObject interactionUIParent; // Reference to the parent UI object
+
     void Start()
     {
         // Get player controller
@@ -57,6 +60,16 @@ public class ComputerInteraction : MonoBehaviour
         {
             Debug.LogError("ComputerCLI script not found on the assigned object!");
         }
+        // Ensure PlayerInteractionScript is assigned (either from Inspector or dynamically)
+        if (PlayerInteractionScript == null)
+        {
+            PlayerInteractionScript = FindObjectOfType<PlayerInteraction>();
+            if (PlayerInteractionScript == null)
+            {
+                Debug.LogError("PlayerInteractionScript not found!");
+            }
+        }
+
     }
 
     void Update()
@@ -105,6 +118,16 @@ public class ComputerInteraction : MonoBehaviour
 
         if (isUsingComputer)
         {
+            // Hide all interaction texts
+            PlayerInteractionScript.HideAllInteractionTexts();
+
+            // Explicitly hide the computer interaction text (in case it stays visible)
+            if (PlayerInteractionScript.computerInteractionText != null)
+            {
+                Debug.Log("Hiding computer interaction text");
+                PlayerInteractionScript.computerInteractionText.enabled = false;
+            }
+
             Debug.Log("Switching to computer mode");
             // Switch to computer camera
             playerCamera.Priority = 0;       // Deactivate player camera by lowering its priority
@@ -112,6 +135,12 @@ public class ComputerInteraction : MonoBehaviour
 
             Cursor.lockState = CursorLockMode.Locked; // Lock cursor for normal gameplay
             Cursor.visible = false;
+
+            if (interactionUIParent != null)
+            {
+                interactionUIParent.SetActive(false);  // Disable the entire parent object
+                Debug.Log("Hiding interaction UI parent");
+            }
 
             // Disable player movement
             if (playerController != null)
@@ -141,6 +170,12 @@ public class ComputerInteraction : MonoBehaviour
 
             Cursor.lockState = CursorLockMode.Locked; // Lock cursor for normal gameplay
             Cursor.visible = false;
+
+            if (interactionUIParent != null)
+            {
+                interactionUIParent.SetActive(true);  // Enable the entire parent object
+                Debug.Log("Hiding interaction UI parent");
+            }
 
             // Re-enable player movement
             if (playerController != null)

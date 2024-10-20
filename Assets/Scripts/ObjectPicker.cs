@@ -1,28 +1,47 @@
 using UnityEngine;
 using System.Collections.Generic;
 using System.Collections;
+using Cinemachine;
 
 public class ObjectPicker : MonoBehaviour
 {
+    public CinemachineImpulseSource impulseSource;
     public Camera playerCamera;         // Main player camera
     public float pickupRange = 3f;      // The range at which the player can pick up objects
     public Vector3 holdOffset = new Vector3(0f, -0.5f, 1.5f); // Position offset for other objects in front of the camera
     public GameObject pickedUpObject = null;
 
+    [Header("PickUp Settings")]
+    public Vector3 pickupPositionOffset = new Vector3(0.5f, -0.5f, 1.5f); // Position offset for "PickUp" tagged objects
+    public Vector3 pickupRotationOffset = new Vector3(0f, 0f, 0f);        // Rotation offset for "PickUp" tagged objects
+    public bool isPickupObject = false;  // Track if the picked-up object is a "PickUp"
+
     [Header("Flashlight Settings")]
     public GameObject flashlightObject;  // Assign this in the inspector
     public Vector3 flashlightPositionOffset = new Vector3(0.5f, -0.5f, 1.5f); // Position offset for the flashlight
     public Vector3 flashlightRotationOffset = new Vector3(0f, 0f, 0f);        // Rotation offset for the flashlight
-    private Light flashlightLight; // Reference to the flashlight's light component
-    private bool isFlashlightOn = true; // Track whether the flashlight is currently on
+    public Light flashlightLight; // Reference to the flashlight's light component
+    public bool isFlashlightOn = true; // Track whether the flashlight is currently on
 
-    private bool isFlashlight = false;  // Track if the picked-up object is a flashlight
+    public bool isFlashlight = false;  // Track if the picked-up object is a flashlight
+
+    [Header("Crowbar Settings")]
+    public Vector3 crowbarPositionOffset = new Vector3(0.3f, -0.4f, 1.0f);  // Custom position offset for the crowbar
+    public Vector3 crowbarRotationOffset = new Vector3(0f, -90f, 0f);  // Custom rotation offset for the crowbar
+    public bool isCrowbar = false;  // Track if the picked-up object is a crowbar
+    public bool isSwinging = false; // Prevent spamming the hit animation
+    public float swingDuration = 0.01f; // How long the swing lasts
+    public Vector3 swingRotationOffset = new Vector3(0f, 0f, -45f); // Swing arc on Z-axis
+    public AudioSource crowbarAudioSource;  // Assign this in the inspector or dynamically
+    public AudioClip swooshSound;           // The swoosh sound when the crowbar swings
+    public AudioClip impactSound;           // The impact sound when the crowbar hits something
+
 
     [Header("Keycard Settings")]
     public Vector3 keycardPositionOffset = new Vector3(0.2f, -0.3f, 1.0f); // Position offset for the keycard
     public Vector3 keycardRotationOffset = new Vector3(0f, 90f, 0f);       // Rotation offset for the keycard
-    private bool isKeycard = false;     // Track if the picked-up object is a keycard
-    private bool isRewrittenKeycard = false;  // Track if the picked-up object is a rewritten keycard
+    public bool isKeycard = false;     // Track if the picked-up object is a keycard
+    public bool isRewrittenKeycard = false;  // Track if the picked-up object is a rewritten keycard
 
     [Header("Rewritten Keycard Settings")]
     public Vector3 rewrittenKeycardPositionOffset = new Vector3(0.2f, -0.3f, 1.0f); // Adjust as needed
@@ -30,7 +49,9 @@ public class ObjectPicker : MonoBehaviour
 
     [Header("Sound Settings")]
     public AudioSource audioSource;  // The audio source for playing unequip sounds
+    public AudioSource audioSourcePickup;  // The audio source for playing unequip sounds
     public AudioClip unequipSound;   // The sound that will play when unequipping
+    public AudioClip pickupSound;   // The sound that will play when unequipping
     public AudioSource flashlightSound;
 
     // Inventory system
@@ -39,8 +60,24 @@ public class ObjectPicker : MonoBehaviour
     [Header("Max Inventory Slots")]
     public const int maxInventorySlots = 3; // Limit to 3 items in the inventory
 
+    public PlayerInteraction playerInteractionUI;
+
     void Start()
     {
+        if (impulseSource == null)
+        {
+            // Dynamically find the Impulse Source component attached to the crowbar
+            impulseSource = pickedUpObject?.GetComponent<CinemachineImpulseSource>();
+            if (impulseSource == null)
+            {
+                Debug.LogError("Impulse Source not found on pickedUpObject!");
+            }
+            else
+            {
+                Debug.Log("Impulse Source dynamically assigned.");
+            }
+        }
+
         if (audioSource == null)
         {
             audioSource = GetComponent<AudioSource>();
@@ -53,8 +90,14 @@ public class ObjectPicker : MonoBehaviour
         }
     }
 
-    void Update()
+    void LateUpdate()
     {
+        // Only skip positioning/rotation updates if the player is currently swinging the crowbar
+        if (isSwinging)
+        {
+            // If the crowbar is swinging, we don't want to override its animation
+            return;
+        }
         // Detect input for picking up the object (e.g., pressing E)
         if (Input.GetKeyDown(KeyCode.E))
         {
@@ -71,6 +114,12 @@ public class ObjectPicker : MonoBehaviour
         if (Input.GetMouseButtonDown(0))
         {
             ThrowObject();  // Throw the currently held object
+        }
+
+        // Detect input for hitting with the crowbar (left mouse button)
+        if (Input.GetMouseButtonDown(0) && isCrowbar)
+        {
+            HitWithCrowbar(); // Call the hitting function for the crowbar
         }
 
         // Detect input for switching items (number keys 1-9)
@@ -125,80 +174,199 @@ public class ObjectPicker : MonoBehaviour
                 pickedUpObject.transform.position = holdPosition;
                 pickedUpObject.transform.rotation = playerCamera.transform.rotation * Quaternion.Euler(rewrittenKeycardRotationOffset);
             }
-            else
+            else if (isCrowbar)
             {
-                // For non-flashlight objects, use standard positioning and rotation
+                // Custom positioning for the crowbar with configurable offsets
                 Vector3 holdPosition = playerCamera.transform.position
-                                       + playerCamera.transform.forward * holdOffset.z
-                                       + playerCamera.transform.right * holdOffset.x
-                                       + playerCamera.transform.up * holdOffset.y;
+                                       + playerCamera.transform.forward * crowbarPositionOffset.z
+                                       + playerCamera.transform.right * crowbarPositionOffset.x
+                                       + playerCamera.transform.up * crowbarPositionOffset.y;
 
                 pickedUpObject.transform.position = holdPosition;
 
-                // Keep the object upright and only rotate with the camera's yaw (left-right)
-                pickedUpObject.transform.rotation = Quaternion.Euler(0, playerCamera.transform.eulerAngles.y, 0); // Lock rotation to yaw only
+                // Apply the rotation offset to the crowbar, using the camera's rotation as a base
+                pickedUpObject.transform.rotation = playerCamera.transform.rotation * Quaternion.Euler(crowbarRotationOffset);
+            }
+            else if (pickedUpObject != null && isPickupObject)
+                {
+                // Use custom "PickUp" settings for positioning
+                Vector3 holdPosition = playerCamera.transform.position
+                                       + playerCamera.transform.forward * pickupPositionOffset.z
+                                       + playerCamera.transform.right * pickupPositionOffset.x
+                                       + playerCamera.transform.up * pickupPositionOffset.y;
+
+                pickedUpObject.transform.position = holdPosition;
+                pickedUpObject.transform.rotation = playerCamera.transform.rotation * Quaternion.Euler(pickupRotationOffset);
+            }
             }
         }
-    }
 
     // Try to pick up an object in front of the player
     void TryPickUpObject()
     {
-        // Check if inventory is full
-        if (inventory.Count >= maxInventorySlots)
-        {
-            Debug.Log("Inventory is full!");
-            return;
-        }
-
         Ray ray = playerCamera.ScreenPointToRay(new Vector3(Screen.width / 2, Screen.height / 2));
         RaycastHit hit;
 
         if (Physics.Raycast(ray, out hit, pickupRange))
         {
-            // Check if the hit object is tagged as "Pickup", "Flashlight", "Keycard", or "RewrittenKeycard"
-            if (hit.collider.CompareTag("Pickup") || hit.collider.CompareTag("Flashlight") || hit.collider.CompareTag("Keycard") || hit.collider.CompareTag("RewrittenKeycard"))
+            GameObject hitObject = hit.collider.gameObject;
+            // Ensure the hit object is valid before proceeding
+            if (hitObject == null)
+            {
+                Debug.LogError("Raycast hit a null object!");
+                return;
+            }
+            // Check if the hit object is tagged as "Pickup", "Flashlight", "Keycard", "RewrittenKeycard", or "Crowbar"
+            if (hit.collider.CompareTag("Pickup") || hit.collider.CompareTag("Flashlight") || hit.collider.CompareTag("Keycard") || hit.collider.CompareTag("RewrittenKeycard") || hit.collider.CompareTag("Crowbar"))
             {
                 PickUpObject(hit.collider.gameObject);
             }
         }
     }
 
+    // Crowbar hitting mechanic
+    void HitWithCrowbar()
+    {
+        if (!isCrowbar || isSwinging) return;  // Don't swing if not holding the crowbar or already swinging
+
+        // Start the swing animation
+        StartCoroutine(CrowbarSwingAnimation());
+
+        RaycastHit hit;
+        Vector3 rayOrigin = playerCamera.transform.position;
+        Vector3 rayDirection = playerCamera.transform.forward;
+
+        // Raycast to detect objects in front of the player
+        if (Physics.Raycast(rayOrigin, rayDirection, out hit, 2.5f)) // Adjust range as needed
+        {
+            Debug.Log("Hit: " + hit.collider.name);
+
+            if (crowbarAudioSource != null && impactSound != null)
+            {
+                crowbarAudioSource.PlayOneShot(impactSound);  // Play the impact sound
+                Debug.Log("Playing crowbar impact sound.");
+            }
+
+            // Apply force if the object has a Rigidbody
+            Rigidbody rb = hit.collider.GetComponent<Rigidbody>();
+            if (rb != null)
+            {
+                Vector3 hitForce = playerCamera.transform.forward * 1000f;  // Adjust force as needed
+                rb.AddForce(hitForce);
+            }
+            // Play hit sound or effects here (optional)
+        }
+    }
     void ThrowObject()
     {
         // Check if the player is holding an object tagged as "Pickup"
         if (pickedUpObject != null && pickedUpObject.CompareTag("Pickup"))
         {
+            // Store a reference to the object before clearing pickedUpObject
+            GameObject objectToThrow = pickedUpObject;
+            DropObject();
+
             // Re-enable physics for the object
-            Rigidbody rb = pickedUpObject.GetComponent<Rigidbody>();
+            Rigidbody rb = objectToThrow.GetComponent<Rigidbody>();
             if (rb != null)
             {
                 rb.isKinematic = false; // Re-enable physics
-                rb.useGravity = true;    // Ensure gravity is applied so it falls
-                
+                rb.useGravity = true;    // Ensure gravity is applied so it falls 
+
+                // Re-enable all colliders on the object
+                Collider[] colliders = objectToThrow.GetComponentsInChildren<Collider>(true);
+                foreach (Collider collider in colliders)
+                {
+                    collider.enabled = true;  // Enable each collider
+                }
+                PlayUnequipSound();
 
                 // Apply a forward force to throw the object in the direction the player is facing
                 Vector3 throwDirection = playerCamera.transform.forward;  // Throw in the direction the camera is facing
                 float throwForce = 10f;  // Adjust this value to change the throw strength
                 rb.AddForce(throwDirection * throwForce, ForceMode.VelocityChange);  // Apply the throw force
 
+                // Clear the pickedUpObject reference (player hands are now empty)
+                pickedUpObject = null;
+
+                // Now call DropObject to handle the item being removed from the player's hands
                 DropObject();
-
-                flashlightObject.SetActive(false);
-
-                // Ensure the player's hands are empty
-                pickedUpObject = null;  // Clear the reference so the player is empty-handed
-                isFlashlight = false;   // Reset the flashlight flag
-                isKeycard = false;      // Reset the keycard flag
-                isRewrittenKeycard = false; // Reset the rewritten keycard flag
-                flashlightLight = null; // Clear flashlight reference
             }
+        }
+        else
+        {
+            Debug.Log("No object to throw.");
         }
     }
 
-    // Pick up the object and add it to the inventory
+
+
     public void PickUpObject(GameObject obj)
     {
+        // Check if the object is tagged as "PickUp"
+        if (obj.CompareTag("Pickup"))
+        {
+            isPickupObject= true;
+
+            if (playerInteractionUI != null)
+            {
+                playerInteractionUI.ShowPickupUI();
+            }
+            // If the player is already holding something (e.g., crowbar or flashlight), deactivate it first
+            if (pickedUpObject != null)
+            {
+                // Deactivate non-throwable items
+                if (pickedUpObject.CompareTag("Crowbar"))
+                {
+                    pickedUpObject.SetActive(false);
+                    isCrowbar = false; // Reset the crowbar flag
+                }
+                else if (pickedUpObject.CompareTag("Flashlight"))
+                {
+                    flashlightObject.SetActive(false);
+                    isFlashlight = false;   // Reset the flashlight flag, but keep reference to flashlightObject
+                }
+                else if (pickedUpObject.CompareTag("Keycard"))
+                {
+                    pickedUpObject.SetActive(false);
+                    isKeycard = false;   // Reset the flag, but keep reference to tObject
+                }
+                else if (pickedUpObject.CompareTag("RewrittenKeycard"))
+                {
+                    pickedUpObject.SetActive(false);
+                    isRewrittenKeycard = false;   // Reset the flag, but keep reference to Object
+                }
+                pickedUpObject = null;
+
+            }
+
+            // Now directly assign the "Pickup" object to the player's hands (bypass inventory)
+            pickedUpObject = obj;
+
+            // Disable physics while holding the object
+            Rigidbody rb = pickedUpObject.GetComponent<Rigidbody>();
+            if (rb != null)
+            {
+                rb.isKinematic = true; // Disable physics so it doesn't fall or collide
+            }
+
+            // Disable only BoxColliders to prevent object from interacting with the environment
+            Collider[] colliders = pickedUpObject.GetComponentsInChildren<Collider>(true);
+            foreach (Collider collider in colliders)
+            {
+                collider.enabled = false;  // Disable each collider
+            }
+
+            // Activate the object in the player's hand
+            pickedUpObject.SetActive(true);
+
+            Debug.Log("Picked up object directly into hands: " + pickedUpObject.name);
+
+            return; // Skip the rest of the inventory logic
+        }
+
+        // For non-PickUp objects (like flashlight, crowbar, etc.), handle as usual and add them to the inventory
+        PlayPickupSound();
         // Check if inventory is full
         if (inventory.Count >= maxInventorySlots)
         {
@@ -223,20 +391,21 @@ public class ObjectPicker : MonoBehaviour
                 flashlightLight.enabled = false;  // Turn off flashlight
                 PlayFlashlightSound();  // Play the sound when turning it off
             }
+            flashlightObject = obj; // Save the flashlight reference for future toggling
         }
 
         // Disable physics while holding the object
-        Rigidbody rb = obj.GetComponent<Rigidbody>();
-        if (rb != null)
+        Rigidbody rbObj = obj.GetComponent<Rigidbody>();
+        if (rbObj != null)
         {
-            rb.isKinematic = true; // Disable physics so it doesn't fall or collide
+            rbObj.isKinematic = true; // Disable physics so it doesn't fall or collide
         }
 
         // Disable only BoxColliders to prevent object from interacting with the environment
-        BoxCollider[] boxColliders = obj.GetComponentsInChildren<BoxCollider>(true);
-        foreach (BoxCollider boxCollider in boxColliders)
+        Collider[] objColliders = obj.GetComponentsInChildren<Collider>(true);
+        foreach (Collider collider in objColliders)
         {
-            boxCollider.enabled = false;  // Disable each BoxCollider
+            collider.enabled = false;  // Disable each BoxCollider
         }
 
         // Deactivate the object in the scene
@@ -287,6 +456,13 @@ public class ObjectPicker : MonoBehaviour
 
     private IEnumerator UnequipItemCoroutine(int newSlot)
     {
+        // If the crowbar is currently swinging, stop the swing animation
+        if (isCrowbar && isSwinging)
+        {
+            StopCoroutine(CrowbarSwingAnimation()); // Stop any running swing animation
+            isSwinging = false;  // Reset the swing flag
+        }
+
         // Animate the currently equipped item moving downward (unequipping)
         yield return StartCoroutine(MoveItemDown(pickedUpObject, playerCamera));
 
@@ -294,27 +470,23 @@ public class ObjectPicker : MonoBehaviour
         if (pickedUpObject != null)
         {
             pickedUpObject.SetActive(false);
-
             pickedUpObject = null; // Clear the reference to the equipped item
         }
 
         // If newSlot is -1, don't equip any new item (leave hands empty)
         if (newSlot != -1)
         {
-            // Add a 0.5-second delay before equipping the new item
-            yield return new WaitForSeconds(0.001f);
-
-            // Equip the new item after the delay
             EquipNewItem(newSlot);
         }
     }
+
 
     private IEnumerator MoveItemDown(GameObject item, Camera playerCamera)
     {
         if (item == null) yield break;
 
         // Set the duration and movement distance
-        float duration = 0.3f;  // Adjust the duration as needed
+        float duration = 0f;  // Adjust the duration as needed
         Vector3 startPos = item.transform.position;
 
         // Move the item backward and slightly downward relative to the camera
@@ -333,8 +505,66 @@ public class ObjectPicker : MonoBehaviour
         item.transform.position = endPos; // Ensure the final position is set
     }
 
+    private IEnumerator CrowbarSwingAnimation()
+    {
+        Debug.Log("CrowbarSwingAnimation: Starting swing animation.");
 
+        // Ensure that the crowbar is still equipped before proceeding
+        if (pickedUpObject == null || !isCrowbar)
+        {
+            Debug.LogWarning("CrowbarSwingAnimation aborted: No crowbar equipped.");
+            isSwinging = false;
+            yield break; // Exit the coroutine early if there's no crowbar equipped
+        }
 
+        isSwinging = true;  // Prevent swinging again during animation
+
+        // Play the swoosh sound when the swing starts
+        if (crowbarAudioSource != null && swooshSound != null)
+        {
+            crowbarAudioSource.PlayOneShot(swooshSound);  // Play the swoosh sound
+            Debug.Log("Playing crowbar swoosh sound.");
+        }
+
+        // Trigger the camera shake immediately when the swing starts
+        if (impulseSource != null)
+        {
+            impulseSource.GenerateImpulse();
+            Debug.Log("CrowbarSwingAnimation: Triggering camera shake.");
+        }
+        else
+        {
+            Debug.LogError("Impulse Source is not assigned!");
+        }
+
+        // Get the current local rotation of the crowbar
+        Quaternion startRotation = pickedUpObject.transform.localRotation;
+
+        // Calculate the target rotation for the forward swing (adjust the swing arc here)
+        Quaternion swingRotation = startRotation * Quaternion.Euler(swingRotationOffset);
+
+        float elapsedTime = 0f;
+        float swingDurationFull = swingDuration;  // Full duration for the forward motion
+
+        // Animate the swing forward (focus on forward swing)
+        while (elapsedTime < swingDurationFull)
+        {
+            // Smooth transition to swing rotation (forward swing)
+            pickedUpObject.transform.localRotation = Quaternion.Slerp(startRotation, swingRotation, elapsedTime / swingDurationFull);
+            elapsedTime += Time.deltaTime;
+            yield return null;
+        }
+
+        // Ensure it reaches the target forward rotation
+        pickedUpObject.transform.localRotation = swingRotation;
+
+        // Reset to the original position immediately after the swing
+        pickedUpObject.transform.localRotation = startRotation;
+
+        Debug.Log("CrowbarSwingAnimation: Completed forward swing animation.");
+
+        isSwinging = false;  // Allow another swing
+    }
 
     private void EquipNewItem(int slot)
     {
@@ -347,6 +577,7 @@ public class ObjectPicker : MonoBehaviour
         isFlashlight = false;
         isKeycard = false;
         isRewrittenKeycard = false;
+        isCrowbar = false;
 
         PlayUnequipSound();
 
@@ -363,12 +594,18 @@ public class ObjectPicker : MonoBehaviour
                 flashlightLight.enabled = false; // Ensure the light is off when picked up
             }
         }
+        // Check if it's a crowbar
+        else if (pickedUpObject.CompareTag("Crowbar"))
+        {
+            isCrowbar = true;  // Now we know the crowbar is equipped
+        }
 
         DisableColliders(pickedUpObject);
 
         // Check if it's a keycard or rewritten keycard
         isKeycard = pickedUpObject.CompareTag("Keycard");
         isRewrittenKeycard = pickedUpObject.CompareTag("RewrittenKeycard");
+
 
         // Handle colliders and physics for keycards
         if (isKeycard || isRewrittenKeycard)
@@ -411,46 +648,62 @@ public class ObjectPicker : MonoBehaviour
     {
         if (pickedUpObject != null)
         {
-            // Check if the object is a "Pickup" item, otherwise prevent dropping
-            if (!pickedUpObject.CompareTag("Pickup"))
+            // Check if the object is a "Pickup" item (dropable), otherwise unequip the item instead of dropping
+            if (pickedUpObject.CompareTag("Pickup"))
             {
-                Debug.Log("Cannot drop this item: " + pickedUpObject.name);
-                return; // Exit the method, prevent dropping
+                if (playerInteractionUI != null)
+                {
+                    playerInteractionUI.HidePickupUI();
+                }
+                // Re-enable physics so the object falls naturally
+                Rigidbody rb = pickedUpObject.GetComponent<Rigidbody>();
+                if (rb != null)
+                {
+                    rb.isKinematic = false; // Re-enable physics
+                    rb.useGravity = true;    // Ensure gravity is applied so it falls
+                }
+
+                EnableColliders(pickedUpObject);
+
+                pickedUpObject.transform.SetParent(null);  // Unparent the object from the camera
+
+                // Activate the item in the scene
+                pickedUpObject.SetActive(true);
+
+                Debug.Log("Dropped: " + pickedUpObject.name);
+
+                pickedUpObject = null;  // Clear the reference to the object so the player is empty-handed
+
             }
-            // Re-enable physics so the object falls naturally
-            Rigidbody rb = pickedUpObject.GetComponent<Rigidbody>();
-            if (rb != null)
+            else
             {
-                rb.isKinematic = false; // Re-enable physics
-                rb.useGravity = true;    // Ensure gravity is applied so it falls
-            }
+                // For non-PickUp items, unequip instead of dropping
+                if (pickedUpObject.CompareTag("Flashlight"))
+                {
+                    pickedUpObject.SetActive(false);  // Deactivate the flashlight
+                    flashlightLight = null;  // Clear flashlight reference
+                    isFlashlight = false;    // Reset flashlight flag
+                }
+                else if (pickedUpObject.CompareTag("Crowbar"))
+                {
+                    pickedUpObject.SetActive(false);  // Deactivate the crowbar
+                    isCrowbar = false;  // Reset crowbar flag
+                }
+                else if (pickedUpObject.CompareTag("Keycard") || pickedUpObject.CompareTag("RewrittenKeycard"))
+                {
+                    pickedUpObject.SetActive(false);  // Deactivate keycards
+                    isKeycard = false;      // Reset keycard flags
+                    isRewrittenKeycard = false;
+                }
 
-            EnableColliders(pickedUpObject);
+                Debug.Log("Unequipped: " + pickedUpObject.name);
 
-            pickedUpObject.transform.SetParent(null);  // Unparent the object from the camera
-
-            // Remove from inventory
-            inventory.Remove(selectedSlot);
-
-            // Activate the item in the scene
-            pickedUpObject.SetActive(true);
-
-            Debug.Log("Dropped: " + pickedUpObject.name + " from slot " + selectedSlot);
-
-            pickedUpObject = null;  // Clear the reference to the object so it stops floating
-            isFlashlight = false;   // Reset the flashlight flag
-            isKeycard = false;      // Reset the keycard flag
-            isRewrittenKeycard = false; // Reset the rewritten keycard flag
-            flashlightLight = null; // Clear flashlight reference
-
-            // Automatically select another item if available
-            if (inventory.Count > 0)
-            {
-                int nextSlot = GetFirstAvailableSlot();
-                SelectInventorySlot(nextSlot);
+                // Clear the reference to the unequipped object
+                pickedUpObject = null;
             }
         }
     }
+
 
     // Toggle the flashlight on/off
     void ToggleFlashlight()
@@ -563,12 +816,38 @@ public class ObjectPicker : MonoBehaviour
         }
     }
 
+    public void AddItemToInventory(GameObject obj)
+    {
+        // Find the next available slot in the inventory
+        int slot = GetNextAvailableSlot();
+        if (slot == -1)
+        {
+            Debug.Log("Inventory is full!");
+            return;
+        }
+
+        // Add the object to the inventory
+        inventory.Add(slot, obj);
+
+        Debug.Log("Added object to inventory: " + obj.name + " in slot " + slot);
+    }
+
+
     private void PlayUnequipSound()
     {
         // Play the unequip sound if available
         if (audioSource != null && unequipSound != null)
         {
             audioSource.PlayOneShot(unequipSound);  // Play the unequip sound immediately
+        }
+    }
+
+    private void PlayPickupSound()
+    {
+        // Play the unequip sound if available
+        if (audioSourcePickup != null)
+        {
+            audioSource.PlayOneShot(pickupSound);  // Play the unequip sound immediately
         }
     }
 

@@ -25,6 +25,7 @@ public class SC_FPSController : MonoBehaviour
 
     private float normalWalkingSpeed;
     private float normalRunningSpeed;
+    private float airMoveSpeed;
 
     private CharacterController characterController;
     private Animator animator;
@@ -92,8 +93,16 @@ public class SC_FPSController : MonoBehaviour
         float currentWalkingSpeed = isCrouching ? crouchSpeed : (isInWater ? waterWalkingSpeed : normalWalkingSpeed);
         float currentRunningSpeed = isInWater ? waterRunningSpeed : normalRunningSpeed;
 
-        float curSpeedX = canMove ? (isRunning ? currentRunningSpeed : currentWalkingSpeed) * verticalInput : 0;
-        float curSpeedY = canMove ? currentWalkingSpeed * horizontalInput : 0;
+        // Calculate movement speed based on grounded state
+        if (characterController.isGrounded)
+        {
+            // Update speed based on running or walking
+            airMoveSpeed = isRunning ? currentRunningSpeed : currentWalkingSpeed; // Store the speed before jumping
+        }
+
+        // If grounded, calculate movement normally
+        float curSpeedX = canMove ? airMoveSpeed * verticalInput : 0;
+        float curSpeedY = canMove ? airMoveSpeed * horizontalInput : 0;
 
         float movementDirectionY = moveDirection.y;
         moveDirection = (forward * curSpeedX) + (right * curSpeedY);
