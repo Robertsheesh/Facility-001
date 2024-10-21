@@ -10,6 +10,8 @@ public class ComputerCLI : MonoBehaviour
     public float inputDelay = 1f;    // Delay time before input is enabled (in seconds)
 
     public AudioSource keycardProcessing;
+    public AudioSource ErrorSoundEffect;
+    public AudioSource SuccessSoundEffect;
 
     // Security cameras and display
     public GameObject controlRoomCamera;   // Control Room entrance camera in hierarchy
@@ -158,6 +160,7 @@ public class ComputerCLI : MonoBehaviour
             else
             {
                 terminalOutput.text += "Login incorrect\nLogin:\n";
+                ErrorSound();
             }
         }
         else
@@ -166,11 +169,13 @@ public class ComputerCLI : MonoBehaviour
             {
                 isLoggedIn = true;
                 terminalOutput.text = "Last login: Mon Sep 17 23:22:09 UTC 2102\n\nType help to see all available commands.\n";
+                SuccessSound();
             }
             else
             {
                 terminalOutput.text = "Login incorrect\nLogin:\n";
                 isEnteringPassword = false;
+                ErrorSound();
             }
         }
     }
@@ -185,17 +190,20 @@ public class ComputerCLI : MonoBehaviour
                 // Go back to the log list (logs menu)
                 DisplayLogMenu();
                 isViewingLog = false;
+                SuccessSound();
             }
             else if (currentState == ComputerState.LogsMenu)
             {
                 // Go back to the help menu from the logs menu
                 terminalOutput.text = "Returning to the main menu.\nType 'help' to see all available commands.\n";
                 currentState = ComputerState.HelpMenu;
+                SuccessSound();
             }
             else if (currentState == ComputerState.CameraMenu || currentState == ComputerState.AccessControlMenu)
             {
                 // Go back to the security main menu from either the camera or access control menu
                 EnterSecurityMainMenu();
+                SuccessSound();
             }
             else if (currentState == ComputerState.SecurityMainMenu)
             {
@@ -203,6 +211,7 @@ public class ComputerCLI : MonoBehaviour
                 terminalOutput.text = "Exiting security mode.\nType 'help' to see available commands.\n";
                 currentState = ComputerState.HelpMenu;
                 DeactivateAllCameras();  // Ensure cameras are turned off when exiting security
+                SuccessSound();
             }
         }
         else if (input.ToLower() == "help")
@@ -217,6 +226,7 @@ public class ComputerCLI : MonoBehaviour
             terminalOutput.text = "You have been logged out.\nLogin:\n";
             currentState = ComputerState.Login;
             DeactivateAllCameras();
+            SuccessSound();
         }
         else if (input.ToLower() == "logs")
         {
@@ -225,11 +235,13 @@ public class ComputerCLI : MonoBehaviour
                 // Display the list of logs and enter the LogsMenu state
                 DisplayLogMenu();
                 currentState = ComputerState.LogsMenu;
+                SuccessSound();
             }
             else
             {
                 terminalOutput.text = "Please enter the security code to access logs:\n";
                 isEnteringSecurityCode = true;
+                ErrorSound();
             }
         }
         else if (int.TryParse(input, out int logIndex) && computerLogs.HasAccessToLogs())
@@ -246,16 +258,19 @@ public class ComputerCLI : MonoBehaviour
             else
             {
                 terminalOutput.text = "Log not found.\nType 'help' to see available commands.\n";
+                ErrorSound();
             }
         }
         else if (input.ToLower() == "security")
         {
             // Correctly route to the security main menu
             EnterSecurityMainMenu();
+            SuccessSound();
         }
         else
         {
             terminalOutput.text = "Command not recognized.\nType 'help' to see available commands.\n";
+            ErrorSound();
         }
     }
 
@@ -293,6 +308,7 @@ public class ComputerCLI : MonoBehaviour
         // Get the list of logs with numbers, dates, and titles
         List<string> logList = computerLogs.GetLogList();
         terminalOutput.text = "Available logs:\n";
+        SuccessSound();
         foreach (string log in logList)
         {
             terminalOutput.text += log + "\n";
@@ -336,12 +352,14 @@ public class ComputerCLI : MonoBehaviour
         inSecurityMenu = true;
         terminalOutput.text = "Select a camera to view:\n - control\n - machine\n - storage\nType 'back' to exit security mode.\n";
         DeactivateAllCameras();  // Disable all cameras when entering the menu
+        SuccessSound();
     }
 
     // Access Control Menu
     private void EnterAccessControlMenu()
     {
         currentState = ComputerState.AccessControlMenu;
+        SuccessSound();
 
         // Display guide text and options for rewriting the keycard and returning to the previous menu
         terminalOutput.text = "Access Control Menu:\n\n";
@@ -380,6 +398,7 @@ public class ComputerCLI : MonoBehaviour
         else
         {
             terminalOutput.text = "Invalid camera selection. Type 'back' to return to the camera menu.\n";
+            ErrorSound();
         }
     }
 
@@ -400,6 +419,7 @@ public class ComputerCLI : MonoBehaviour
         else
         {
             terminalOutput.text = "Invalid selection. Type 'back' to return to the security menu.\n";
+            ErrorSound();
         }
     }
 
@@ -427,10 +447,12 @@ public class ComputerCLI : MonoBehaviour
             {
                 terminalOutput.text = "Keycard rewrite operation cancelled.\n";
                 isConfirmingRewrite = false;  // Exit confirmation state
+                ErrorSound();
             }
             else
             {
                 terminalOutput.text = "Invalid response. Type 'yes' to proceed or 'no' to cancel.\n";
+                ErrorSound();
             }
         }
         else
@@ -446,15 +468,18 @@ public class ComputerCLI : MonoBehaviour
                     // Ask for confirmation
                     terminalOutput.text = "Are you sure you want to rewrite this keycard?\n\nType 'yes' to proceed, type 'no' to cancel.\n";
                     isConfirmingRewrite = true;  // Set the confirmation state
+                    ErrorSound();
                 }
                 else
                 {
                     terminalOutput.text = "No keycard detected in the reader.\nType 'back' to return to the security menu.\n";
+                    ErrorSound();
                 }
             }
             else
             {
                 terminalOutput.text = "Invalid selection. Type 'back' to return to the security menu.\n";
+                ErrorSound();
             }
         }
     }
@@ -487,6 +512,24 @@ public class ComputerCLI : MonoBehaviour
         if (keycardProcessing != null)
         {
             keycardProcessing.Play();  // Start playing the keycard processing sound
+        }
+    }
+
+    // Error Sound
+    void ErrorSound()
+    {
+        if (ErrorSoundEffect != null)
+        {
+            ErrorSoundEffect.Play();  // Start playing the keycard processing sound
+        }
+    }
+
+    // Error Sound
+    void SuccessSound()
+    {
+        if (SuccessSoundEffect != null)
+        {
+            SuccessSoundEffect.Play();  // Start playing the keycard processing sound
         }
     }
 }
