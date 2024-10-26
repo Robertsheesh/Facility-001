@@ -1,8 +1,11 @@
 using System.Collections;
 using UnityEngine;
+using System;
 
 public class AirlockController : MonoBehaviour
 {
+    public event Action OnAirlockSequenceComplete;
+
     public Animator firstDoorAnimator;    // Animator for the first door (entry door)
     public Animator secondDoorAnimator;   // Animator for the second door (exit door)
     public Animator leverAnimator;        // Animator for the lever
@@ -116,7 +119,7 @@ public class AirlockController : MonoBehaviour
         }
 
         // Wait for 0.5 seconds before resetting the lever
-        yield return new WaitForSeconds(4f);
+        yield return new WaitForSeconds(2f);
 
         // 11. Reset the lever to its original position (turn it off)
         if (leverAnimator != null)
@@ -138,6 +141,7 @@ public class AirlockController : MonoBehaviour
         smokeSystem.gameObject.SetActive(false);
 
         isInUse = false; // The airlock process is complete
+        OnAirlockSequenceComplete?.Invoke();
     }
 
     // Coroutine to handle flickering of lights and lamps' emission during the operation
@@ -205,7 +209,7 @@ public class AirlockController : MonoBehaviour
         while (currentTime < duration)
         {
             currentTime += Time.deltaTime;
-            audioSource.volume = Mathf.Lerp(0f, 0.6f, currentTime / duration); // Gradually increase volume
+            audioSource.volume = Mathf.Lerp(0f, 0.4f, currentTime / duration); // Gradually increase volume
             yield return null;
         }
     }
