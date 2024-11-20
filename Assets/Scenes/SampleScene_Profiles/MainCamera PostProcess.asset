@@ -252,7 +252,7 @@ MonoBehaviour:
     value: {x: 50, y: 95}
   minLuminance:
     overrideState: 1
-    value: 0.01
+    value: -0
   maxLuminance:
     overrideState: 0
     value: 9
@@ -295,7 +295,7 @@ MonoBehaviour:
     value: 1000
   ColorDepth:
     overrideState: 1
-    value: 0.2
+    value: 0.5
   DitherPattern:
     overrideState: 1
     value: {fileID: 2800000, guid: 2bab58d6916f2254a88c7a288552d740, type: 3}
@@ -305,10 +305,10 @@ MonoBehaviour:
     value: 1
   DitherThreshold:
     overrideState: 1
-    value: 0.12
+    value: 0.08
   DitherIntensity:
     overrideState: 1
-    value: 0.145
+    value: 0.09
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -434,7 +434,7 @@ MonoBehaviour:
     value: 0
   contrast:
     overrideState: 1
-    value: -38
+    value: -37
   mixerRedOutRedIn:
     overrideState: 1
     value: 106
