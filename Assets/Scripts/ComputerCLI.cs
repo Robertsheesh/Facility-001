@@ -350,7 +350,7 @@ public class ComputerCLI : MonoBehaviour
         previousState = currentState; // Track where we came from
         currentState = ComputerState.CameraMenu;
         inSecurityMenu = true;
-        terminalOutput.text = "Select a camera to view:\n - control\n - machine\n - storage\nType 'back' to exit security mode.\n";
+        terminalOutput.text = "Select a camera to view:\n - hallway\n - airlock\n - stairs\nType 'back' to exit security mode.\n";
         DeactivateAllCameras();  // Disable all cameras when entering the menu
         SuccessSound();
     }
@@ -380,20 +380,20 @@ public class ComputerCLI : MonoBehaviour
             DeactivateAllCameras();  // This function will deactivate the cameras and clear the screen
             EnterSecurityMainMenu(); // Go back to the security main menu
         }
-        else if (input.ToLower() == "control")
+        else if (input.ToLower() == "hallway")
         {
             // Activate control room camera
-            ActivateCamera(0, controlRoomTexture, controlRoomCamera, "Control Room camera active.");
+            ActivateCamera(0, controlRoomTexture, controlRoomCamera, "Airlock camera active.");
         }
-        else if (input.ToLower() == "machine")
+        else if (input.ToLower() == "airlock")
         {
             // Activate machine camera
             ActivateCamera(1, machineTexture, machineCamera, "Machine camera active.");
         }
-        else if (input.ToLower() == "storage")
+        else if (input.ToLower() == "stairs")
         {
             // Activate storage camera
-            ActivateCamera(2, storageTexture, storageCamera, "Storage camera active.");
+            ActivateCamera(2, storageTexture, storageCamera, "Stair camera active.");
         }
         else
         {

@@ -74,10 +74,13 @@ public class SC_FPSController : MonoBehaviour
 
     void Update()
     {
-        // Toggle noclip mode
-        if (Input.GetKeyDown(KeyCode.N))
+        // Toggle noclip mode with Shift + .
+        if (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)) // Check if either Shift key is held
         {
-            ToggleNoclip();
+            if (Input.GetKeyDown(KeyCode.Period)) // Check if the . key is pressed
+            {
+                ToggleNoclip();
+            }
         }
 
         // Handle movement based on whether noclip is active or not
