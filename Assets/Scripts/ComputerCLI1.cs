@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.UI;
 using System.Collections;
 using System.Collections.Generic;
@@ -31,8 +31,8 @@ public class ComputerCLI1 : MonoBehaviour
     private bool isEnteringSecurityCode = false; // Track if the user is entering the security code
     private string username = "";          // To store the entered username
 
-    private const string correctUsername = "employee";  // The correct username
-    private const string correctPassword = "aetheris";  // The correct password
+    private const string correctUsername = "a";  // The correct username
+    private const string correctPassword = "a";  // The correct password
 
     private bool isConfirmingRewrite = false;  // Track if the player is confirming the rewrite action
 
@@ -40,7 +40,17 @@ public class ComputerCLI1 : MonoBehaviour
 
     private CardInsertScript cardInsertScript;
 
-    private enum ComputerState { Login, HelpMenu, LogsMenu, SecurityMainMenu, CameraMenu, AccessControlMenu, ViewingLog }
+    // Platform puzzle variables
+    private float[] platformPositions = new float[4]; // Stores current positions of platforms
+    private int currentPlatform = 0; // Tracks which platform the player is aligning
+    private bool isPuzzleActive = false;
+    private float[] platformSpeeds; // Array to store progressive platform swing speeds
+    public GameObject[] platforms;
+    private Vector3[] originalPositions; // Array to store original positions of platforms
+    private Quaternion[] initialRotations; // Array to store the initial rotations of platform parents
+    private bool isAligning = false; // Flag to track if a platform is aligning to X-axis = 0
+
+    private enum ComputerState { Login, HelpMenu, LogsMenu, SecurityMainMenu, CameraMenu, AccessControlMenu, ViewingLog, PlatformPuzzle }
     private ComputerState currentState = ComputerState.Login;
     private ComputerState previousState;  // Track the previous state for "back" functionality
 
@@ -69,6 +79,24 @@ public class ComputerCLI1 : MonoBehaviour
             Debug.LogError("CardInsertScript not found!");
         }
     }
+
+    private void Awake()
+    {
+        if (initialRotations == null || initialRotations.Length != platforms.Length)
+        {
+            initialRotations = new Quaternion[platforms.Length];
+        }
+
+        for (int i = 0; i < platforms.Length; i++)
+        {
+            // Randomize the initial X-axis rotation (e.g., between -45 and 45 degrees)
+            float randomAngle = Random.Range(-45f, 45f);
+            platforms[i].transform.parent.localRotation = Quaternion.Euler(randomAngle, 0f, 0f);
+            initialRotations[i] = platforms[i].transform.parent.localRotation; // Store randomized position
+        }
+    }
+
+
 
     // Enable input field with delay when player uses the computer
     public void EnableInput()
@@ -102,7 +130,25 @@ public class ComputerCLI1 : MonoBehaviour
         {
             SubmitInput(inputField.text);  // Manually submit input when pressing Enter
         }
+
+        // Handle the platform puzzle
+        if (currentState == ComputerState.PlatformPuzzle && Input.GetKeyDown(KeyCode.Space))
+        {
+            // Check if the current platform is centered
+            if (Mathf.Abs(platformPositions[currentPlatform] - 0.5f) < 0.025f && !isAligning)
+            {
+                // Trigger alignment phase for the current platform
+                AlignPlatform();
+            }
+            else if (!isAligning)
+            {
+                // Notify the player of a failed attempt
+                terminalOutput.text = $"Platform {currentPlatform + 1} missed! Try again.\n";
+                ErrorSound();
+            }
+        }
     }
+
 
     private void SubmitInput(string input)
     {
@@ -143,9 +189,6 @@ public class ComputerCLI1 : MonoBehaviour
             inputField.Select();
         }
     }
-
-
-
 
     private void HandleLogin(string input)
     {
@@ -213,10 +256,20 @@ public class ComputerCLI1 : MonoBehaviour
                 DeactivateAllCameras();  // Ensure cameras are turned off when exiting security
                 SuccessSound();
             }
+            else if (currentState == ComputerState.PlatformPuzzle)
+            {
+                isPuzzleActive = false;
+                terminalOutput.text = "Exiting the Alignment Puzzle.\nType 'help' to see available commands.\n";
+                currentState = ComputerState.HelpMenu;
+            }
+        }
+        else if (input.ToLower() == "align")
+        {
+            EnterPlatformPuzzle();
         }
         else if (input.ToLower() == "help")
         {
-            terminalOutput.text = "Available commands:\n - help\n - logout\n - logs\n - security\n";
+            terminalOutput.text = "Available commands:\n - help\n - logout\n - logs\n - security\n - align\n";
             currentState = ComputerState.HelpMenu;
         }
         else if (input.ToLower() == "logout")
@@ -274,9 +327,6 @@ public class ComputerCLI1 : MonoBehaviour
         }
     }
 
-
-
-    // Handle going back from different states
     // Handle going back from different states
     private void HandleBackCommand()
     {
@@ -300,7 +350,6 @@ public class ComputerCLI1 : MonoBehaviour
                 break;
         }
     }
-
 
 
     private void DisplayLogMenu()
@@ -371,6 +420,192 @@ public class ComputerCLI1 : MonoBehaviour
         terminalOutput.text += "\nType 'rewrite keycard' to rewrite the keycard.\n";
         terminalOutput.text += "Type 'back' to return to the security menu.\n";
     }
+
+    private void EnterPlatformPuzzle()
+    {
+        terminalOutput.text = "Welcome to the Alignment Puzzle!\n\n" +
+                              "Press SPACE to align each platform in the middle.\n" +
+                              "Type 'exit' to leave the puzzle.\n";
+        currentState = ComputerState.PlatformPuzzle;
+        StartPlatformPuzzle();
+    }
+
+    private void StartPlatformPuzzle()
+    {
+        isPuzzleActive = true;
+        currentPlatform = 0;
+
+        // Ensure platformPositions and platformSpeeds arrays match the number of platforms
+        if (platformPositions == null || platformPositions.Length != platforms.Length)
+        {
+            platformPositions = new float[platforms.Length];
+        }
+
+        if (platformSpeeds == null || platformSpeeds.Length != platforms.Length)
+        {
+            platformSpeeds = new float[platforms.Length];
+        }
+
+        // Reset platform positions to the middle and assign progressive speeds
+        for (int i = 0; i < platformPositions.Length; i++)
+        {
+            platformPositions[i] = 0.5f; // Start each platform in the middle
+
+            // Assign progressive speeds (e.g., baseSpeed + index * increment)
+            float baseSpeed = 0.5f; // Starting speed for the first platform
+            float speedIncrement = 0.2f; // Speed increment for each subsequent platform
+            platformSpeeds[i] = baseSpeed + i * speedIncrement; // Progressive speed
+        }
+
+        StartCoroutine(MovePlatforms());
+    }
+
+
+    private IEnumerator MovePlatforms()
+    {
+        while (isPuzzleActive)
+        {
+            if (currentPlatform < platformPositions.Length)
+            {
+                // Align the current platform to X-axis = 0 if necessary
+                if (isAligning)
+                {
+                    Quaternion targetRotation = Quaternion.Euler(0f, 0f, 0f); // Neutral position
+                    Transform platformParent = platforms[currentPlatform].transform.parent;
+
+                    // Smoothly align the platform to the target rotation
+                    platformParent.localRotation = Quaternion.Slerp(
+                        platformParent.localRotation,
+                        targetRotation,
+                        Time.deltaTime * 2f // Adjust speed as needed
+                    );
+
+                    // Check if alignment is complete
+                    if (Quaternion.Angle(platformParent.localRotation, targetRotation) <= 0.1f)
+                    {
+                        // Finalize alignment
+                        platformParent.localRotation = targetRotation;
+                        isAligning = false; // Mark alignment as complete
+
+                        // Start swinging the platform
+                        terminalOutput.text = $"Platform {currentPlatform + 1} aligned! Starting swing...\n";
+                    }
+
+                    yield return null; // Wait until alignment is complete
+                }
+                else
+                {
+                    // Use platform-specific speed for swinging
+                    platformPositions[currentPlatform] += platformSpeeds[currentPlatform] * Time.deltaTime;
+
+                    // Wrap platformPositions[currentPlatform] around to stay within 0.0 to 1.0
+                    if (platformPositions[currentPlatform] > 1.0f)
+                    {
+                        platformPositions[currentPlatform] -= 1.0f;
+                    }
+
+                    // Update the visual representation
+                    UpdatePlatformDisplay();
+
+                    yield return null; // Wait for the next frame
+                }
+            }
+            else
+            {
+                isPuzzleActive = false;
+                terminalOutput.text = "All platforms aligned! The bridge is complete.\nType 'exit' to leave the puzzle.\n";
+            }
+        }
+    }
+
+    private void AlignPlatform()
+    {
+        if (isAligning || currentPlatform >= platforms.Length)
+            return; // Prevent interaction while aligning or if no platform is active
+
+        isAligning = true;
+        terminalOutput.text = $"Aligning Platform {currentPlatform + 1}...\n";
+
+        StartCoroutine(AlignCurrentPlatform());
+    }
+
+    private IEnumerator AlignCurrentPlatform()
+    {
+        Transform platformParent = platforms[currentPlatform].transform.parent;
+        Quaternion targetRotation = Quaternion.Euler(0f, 0f, 0f); // Neutral position
+
+        // Smoothly align the platform to the target rotation
+        while (Quaternion.Angle(platformParent.localRotation, targetRotation) > 0.1f)
+        {
+            platformParent.localRotation = Quaternion.Slerp(
+                platformParent.localRotation,
+                targetRotation,
+                Time.deltaTime * 2f // Adjust speed as needed
+            );
+
+            yield return null; // Wait for the next frame
+        }
+
+        // Finalize alignment
+        platformParent.localRotation = targetRotation;
+        terminalOutput.text = $"Platform {currentPlatform + 1} aligned! Starting swing...\n";
+        SuccessSound();
+
+        // Mark alignment as complete and move to the next platform
+        isAligning = false;
+        currentPlatform++;
+    }
+
+
+
+    private void UpdatePlatformDisplay()
+    {
+        terminalOutput.text = "Platform Puzzle:\n";
+
+        for (int i = 0; i < platforms.Length; i++)
+        {
+            if (i < currentPlatform)
+            {
+                // Completed platforms swing naturally
+                float maxSwingOffset = 36.59f; // Maximum swing offset
+                float swingProgress = platformPositions[i] * Mathf.PI * 2f; // Full sine wave cycle
+                float swingOffset = maxSwingOffset * Mathf.Sin(swingProgress);
+
+                Quaternion swingRotation = Quaternion.Euler(swingOffset, 0f, 0f);
+                platforms[i].transform.parent.localRotation = swingRotation;
+            }
+            else if (i == currentPlatform)
+            {
+                if (isAligning)
+                {
+                    // Skip logic while the platform is aligning (handled in AlignCurrentPlatform)
+                    continue;
+                }
+                else
+                {
+                    // Current platform swings naturally after alignment
+                    float maxSwingOffset = 36.59f;
+                    float swingProgress = platformPositions[i] * Mathf.PI * 2f;
+                    float swingOffset = maxSwingOffset * Mathf.Sin(swingProgress);
+
+                    Quaternion swingRotation = Quaternion.Euler(swingOffset, 0f, 0f);
+                    platforms[i].transform.parent.localRotation = swingRotation;
+                }
+            }
+            else
+            {
+                // Unaddressed platforms remain in their initial randomized rotation
+                platforms[i].transform.parent.localRotation = initialRotations[i];
+            }
+
+            // Update the terminal display
+            string positionDisplay = i == currentPlatform && isAligning
+                ? ">> Aligning..."
+                : new string(' ', Mathf.RoundToInt((Mathf.Sin(platformPositions[i] * Mathf.PI * 2f) + 1) * 10)) + "|";
+            terminalOutput.text += $"Platform {i + 1}: {positionDisplay}\n";
+        }
+    }
+
 
     private void HandleCameraCommands(string input)
     {
