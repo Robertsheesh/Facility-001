@@ -131,20 +131,18 @@ public class ComputerCLI1 : MonoBehaviour
             SubmitInput(inputField.text);  // Manually submit input when pressing Enter
         }
 
-        // Handle the platform puzzle
         if (currentState == ComputerState.PlatformPuzzle && Input.GetKeyDown(KeyCode.Space))
         {
-            // Check if the current platform is centered
-            if (Mathf.Abs(platformPositions[currentPlatform] - 0.5f) < 0.025f && !isAligning)
+            if (!isAligning && Mathf.Abs(platformPositions[currentPlatform] - 0.5f) < 0.1f)
             {
-                // Trigger alignment phase for the current platform
-                AlignPlatform();
+                AlignPlatform(); // Player succeeded
             }
             else if (!isAligning)
             {
-                // Notify the player of a failed attempt
-                terminalOutput.text = $"Platform {currentPlatform + 1} missed! Try again.\n";
+                // Player failed, restart from the first platform
+                terminalOutput.text = "You failed! Restarting the puzzle...\n";
                 ErrorSound();
+                RestartPuzzle();
             }
         }
     }
@@ -606,6 +604,35 @@ public class ComputerCLI1 : MonoBehaviour
         }
     }
 
+    private void RestartPuzzle()
+    {
+        isPuzzleActive = false;
+        currentPlatform = 0;
+
+        // Reset platform positions and alignment states
+        for (int i = 0; i < platformPositions.Length; i++)
+        {
+            platformPositions[i] = 0.5f;  // Reset all positions to the center
+
+            // Reset platforms to their initial randomized rotation
+            platforms[i].transform.parent.localRotation = initialRotations[i];
+        }
+
+        // Restart the puzzle after a short delay
+        StartCoroutine(RestartDelay());
+    }
+
+    private IEnumerator RestartDelay()
+    {
+        yield return new WaitForSeconds(1.5f); // Delay before restart to give feedback
+
+        terminalOutput.text = "Welcome to the Alignment Puzzle!\n\n" +
+                              "Press SPACE to align each platform in the middle.\n" +
+                              "Type 'exit' to leave the puzzle.\n";
+
+        isPuzzleActive = true;
+        StartCoroutine(MovePlatforms());
+    }
 
     private void HandleCameraCommands(string input)
     {

@@ -40,7 +40,7 @@ public class ComputerCLI : MonoBehaviour
 
     private CardInsertScript cardInsertScript;
 
-    private enum ComputerState { Login, HelpMenu, LogsMenu, SecurityMainMenu, CameraMenu, AccessControlMenu, ViewingLog }
+    private enum ComputerState { Login, HelpMenu, LogsMenu, SecurityMainMenu, CameraMenu, AccessControlMenu, ViewingLog, Messaging }
     private ComputerState currentState = ComputerState.Login;
     private ComputerState previousState;  // Track the previous state for "back" functionality
 
@@ -48,6 +48,11 @@ public class ComputerCLI : MonoBehaviour
 
     private bool inSecurityMenu = false; // Track if the user is in the security camera menu
     private int currentCameraIndex = -1; // Track the currently displayed camera (-1 means none)
+
+    // Messaging function
+    private int unreadMessages = 1;
+    private bool showUnreadMessage = true;
+    private bool isBlinkingActive = true;
 
     void Start()
     {
@@ -168,7 +173,11 @@ public class ComputerCLI : MonoBehaviour
             if (input == correctPassword)
             {
                 isLoggedIn = true;
-                terminalOutput.text = "Last login: Mon Sep 17 23:22:09 UTC 2102\n\nType help to see all available commands.\n";
+                isBlinkingActive = true;
+                StartCoroutine(BlinkUnreadMessage()); // Start blinking effect
+
+                terminalOutput.text = "Last login: Mon Sep 17 23:22:09 UTC 2102\n";
+                terminalOutput.text += "\nType help to see all available commands.\n";
                 SuccessSound();
             }
             else
@@ -178,6 +187,36 @@ public class ComputerCLI : MonoBehaviour
                 ErrorSound();
             }
         }
+    }
+
+    private IEnumerator BlinkUnreadMessage()
+    {
+        while (isBlinkingActive)
+        {
+            showUnreadMessage = !showUnreadMessage; // Toggle visibility
+            UpdateTerminalWithBlinkingText();
+            yield return new WaitForSeconds(0.5f); // Blink every 0.5 seconds
+        }
+    }
+
+    private void UpdateTerminalWithBlinkingText()
+    {
+        if (currentState == ComputerState.Login && isLoggedIn)
+        {
+            string unreadMessageText = showUnreadMessage ? "Unread messages (1)\n" : "\n"; // Show or hide message
+
+            terminalOutput.text = "Last login: Mon Sep 17 23:22:09 UTC 2102\n" +
+                                  unreadMessageText +
+                                  "\nType help to see all available commands.\n";
+        }
+    }
+
+    private void StopBlinking()
+    {
+        isBlinkingActive = false;
+        StopCoroutine(BlinkUnreadMessage()); // Stop blinking when entering menus
+        showUnreadMessage = false;
+        UpdateTerminalWithBlinkingText();  // Update text one final time without the blinking message
     }
 
     private void HandleCommands(string input)
@@ -213,10 +252,32 @@ public class ComputerCLI : MonoBehaviour
                 DeactivateAllCameras();  // Ensure cameras are turned off when exiting security
                 SuccessSound();
             }
+            else if (currentState == ComputerState.Messaging)
+            {
+                if (input.ToLower() == "back")
+                {
+                    terminalOutput.text = "Returning to the main menu.\nType 'help' to see all available commands.\n";
+                    currentState = ComputerState.HelpMenu;
+                    StopBlinking(); // Stop blinking when entering messages
+                    SuccessSound();
+                }
+                else if (input == "1")
+                {
+                    terminalOutput.text = "From: Admin\n" +
+                                          "Subject: Urgent: System Malfunction Detected\n" +
+                                          "Message: The reactor is overheating. Please take immediate action.\n" +
+                                          "\nType 'back' to return to the messaging menu.\n";
+                }
+                else
+                {
+                    terminalOutput.text = "Invalid selection. Type 'back' to return to the messaging menu.\n";
+                    ErrorSound();
+                }
+            }
         }
         else if (input.ToLower() == "help")
         {
-            terminalOutput.text = "Available commands:\n - help\n - logout\n - logs\n - security\n";
+            terminalOutput.text = "Available commands:\n - help\n - logout\n - logs\n - security\n - messages\n";
             currentState = ComputerState.HelpMenu;
         }
         else if (input.ToLower() == "logout")
@@ -267,6 +328,11 @@ public class ComputerCLI : MonoBehaviour
             EnterSecurityMainMenu();
             SuccessSound();
         }
+        else if (input.ToLower() == "messages")
+        {
+            EnterMessagingMenu();
+            SuccessSound();
+        }
         else
         {
             terminalOutput.text = "Command not recognized.\nType 'help' to see available commands.\n";
@@ -274,9 +340,6 @@ public class ComputerCLI : MonoBehaviour
         }
     }
 
-
-
-    // Handle going back from different states
     // Handle going back from different states
     private void HandleBackCommand()
     {
@@ -295,13 +358,23 @@ public class ComputerCLI : MonoBehaviour
                 isViewingLog = false;
                 currentState = ComputerState.LogsMenu;
                 break;
+            case ComputerState.Messaging:
+                terminalOutput.text = "Returning to the main menu.\nType 'help' to see all available commands.\n";
+                currentState = ComputerState.HelpMenu;
+                break;
             default:
                 terminalOutput.text = "Cannot go back.";
                 break;
         }
     }
 
-
+    private void EnterMessagingMenu()
+    {
+        currentState = ComputerState.Messaging;
+        terminalOutput.text = "Messaging\n\n" +
+                              "1. [Unread] Urgent: System Malfunction Detected\n\n" +
+                              "Type a message number to view its content or 'back' to return to the main menu.\n";
+    }
 
     private void DisplayLogMenu()
     {
