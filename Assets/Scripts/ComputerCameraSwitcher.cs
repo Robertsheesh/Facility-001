@@ -142,11 +142,14 @@ public class ComputerInteraction : MonoBehaviour
                 Debug.Log("Hiding interaction UI parent");
             }
 
-            // Disable player movement
+            // Enable player movement and restore crouching capability
             if (playerController != null)
             {
-                playerController.canMove = false;
-                Debug.Log("Player movement disabled");
+                playerController.canMove = false; // Disable all movement
+                playerController.isCrouching = false; // Force standing position
+                playerController.characterController.height = playerController.standingHeight;
+                playerController.standingCamera.Priority = 10;
+                playerController.crouchingCamera.Priority = 0;
             }
 
             // Enable computer input after a delay

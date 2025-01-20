@@ -24,7 +24,7 @@ public class SC_FPSController : MonoBehaviour
 
     private CinemachineBasicMultiChannelPerlin noise;
 
-    private CharacterController characterController;
+    public CharacterController characterController;
     private Animator animator;
     private Vector3 moveDirection = Vector3.zero;
     private float rotationX = 0;
@@ -212,6 +212,8 @@ public class SC_FPSController : MonoBehaviour
 
     void HandleCrouch(bool crouchKeyHeld)
     {
+        if (!canMove) return; // Prevent crouching while using the computer
+
         if (crouchKeyHeld && characterController.isGrounded)
         {
             characterController.height = crouchHeight;

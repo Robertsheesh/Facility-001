@@ -53,11 +53,22 @@ public class ComputerCLI : MonoBehaviour
     private int unreadMessages = 1;
     private bool showUnreadMessage = true;
     private bool isBlinkingActive = true;
+    private bool hasCheckedMessages = false; // Track if the player accessed messages
+
+
+    // Dialogue System
+    private ComputerDialogue dialogueSystem;
 
     void Start()
     {
+        // Load saved state of message
+        hasCheckedMessages = PlayerPrefs.GetInt("HasCheckedMessages", 0) == 1;
+
         // Find the ComputerLogs script
         computerLogs = FindObjectOfType<ComputerLogs>();
+
+        // Find Dialogue System Script
+        dialogueSystem = FindObjectOfType<ComputerDialogue>();
 
         // Set initial terminal output
         terminalOutput.text = welcomeText;
@@ -73,6 +84,13 @@ public class ComputerCLI : MonoBehaviour
         {
             Debug.LogError("CardInsertScript not found!");
         }
+    }
+
+    // Save state when player quits
+    void OnApplicationQuit()
+    {
+        PlayerPrefs.SetInt("HasCheckedMessages", hasCheckedMessages ? 1 : 0);
+        PlayerPrefs.Save();
     }
 
     // Enable input field with delay when player uses the computer
@@ -149,8 +167,11 @@ public class ComputerCLI : MonoBehaviour
         }
     }
 
-
-
+    // Displays the players response when in dialogue
+    public void DisplayPlayerResponse(string response)
+    {
+        terminalOutput.text += "\n> " + response + "\n";
+    }
 
     private void HandleLogin(string input)
     {
@@ -195,7 +216,7 @@ public class ComputerCLI : MonoBehaviour
         {
             showUnreadMessage = !showUnreadMessage; // Toggle visibility
             UpdateTerminalWithBlinkingText();
-            yield return new WaitForSeconds(0.5f); // Blink every 0.5 seconds
+            yield return new WaitForSeconds(0.4f); // Blink every 0.25 seconds
         }
     }
 
@@ -203,7 +224,7 @@ public class ComputerCLI : MonoBehaviour
     {
         if (currentState == ComputerState.Login && isLoggedIn)
         {
-            string unreadMessageText = showUnreadMessage ? "Unread messages (1)\n" : "\n"; // Show or hide message
+            string unreadMessageText = (showUnreadMessage && !hasCheckedMessages) ? "Unread messages (1)\n" : "\n";
 
             terminalOutput.text = "Last login: Mon Sep 17 23:22:09 UTC 2102\n" +
                                   unreadMessageText +
@@ -214,9 +235,9 @@ public class ComputerCLI : MonoBehaviour
     private void StopBlinking()
     {
         isBlinkingActive = false;
-        StopCoroutine(BlinkUnreadMessage()); // Stop blinking when entering menus
+        StopCoroutine(BlinkUnreadMessage());
         showUnreadMessage = false;
-        UpdateTerminalWithBlinkingText();  // Update text one final time without the blinking message
+        UpdateTerminalWithBlinkingText();
     }
 
     private void HandleCommands(string input)
@@ -260,13 +281,6 @@ public class ComputerCLI : MonoBehaviour
                     currentState = ComputerState.HelpMenu;
                     StopBlinking(); // Stop blinking when entering messages
                     SuccessSound();
-                }
-                else if (input == "1")
-                {
-                    terminalOutput.text = "From: Admin\n" +
-                                          "Subject: Urgent: System Malfunction Detected\n" +
-                                          "Message: The reactor is overheating. Please take immediate action.\n" +
-                                          "\nType 'back' to return to the messaging menu.\n";
                 }
                 else
                 {
@@ -370,10 +384,26 @@ public class ComputerCLI : MonoBehaviour
 
     private void EnterMessagingMenu()
     {
+        terminalOutput.text = "Messaging System\n\n";
+        terminalOutput.text += "Connecting...\n";
         currentState = ComputerState.Messaging;
-        terminalOutput.text = "Messaging\n\n" +
-                              "1. [Unread] Urgent: System Malfunction Detected\n\n" +
-                              "Type a message number to view its content or 'back' to return to the main menu.\n";
+
+        DisableInput();
+
+        if (!hasCheckedMessages)
+        {
+            hasCheckedMessages = true;  // Mark messages as read
+            StopBlinking();  // Stop blinking the "Unread Messages" notification
+        }
+
+        // Start dialogue sequence
+        FindObjectOfType<ComputerDialogue>().StartDialogue();
+    }
+
+    public void DialogueEnded()
+    {
+        EnableInput();
+        terminalOutput.text += "\n[Transmission terminated]\n";
     }
 
     private void DisplayLogMenu()
