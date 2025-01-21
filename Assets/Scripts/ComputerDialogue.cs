@@ -179,25 +179,19 @@ public class ComputerDialogue : MonoBehaviour
 
         List<Choice> choices = inkStory.currentChoices;
 
-        // Activate the response panel
+        if (choices.Count == 0) return;
+
         playerHUDPanel.SetActive(true);
-        currentSelection = 0; // Reset selection to avoid out-of-range errors
+        currentSelection = Mathf.Clamp(currentSelection, 0, choices.Count - 1); // Ensure valid selection
 
         for (int i = 0; i < optionTexts.Length; i++)
         {
             if (i < choices.Count)
             {
                 optionTexts[i].text = choices[i].text;
-                optionTexts[i].color = usedOptions.ContainsKey(choices[i].text) ? Color.gray : Color.white;
-                int choiceIndex = i;
 
-                // Ensure button component exists before using it
-                Button button = optionTexts[i].GetComponent<Button>();
-                if (button != null)
-                {
-                    button.onClick.RemoveAllListeners();
-                    button.onClick.AddListener(() => SelectOption(choiceIndex));
-                }
+                // Darken used options
+                optionTexts[i].color = usedOptions.ContainsKey(choices[i].text) ? new Color(0.5f, 0.5f, 0.5f) : Color.white;
             }
             else
             {
@@ -209,28 +203,55 @@ public class ComputerDialogue : MonoBehaviour
     }
 
 
+
+
     private void HighlightOption()
     {
+        List<Choice> choices = inkStory.currentChoices;
+
         for (int i = 0; i < optionTexts.Length; i++)
         {
-            optionTexts[i].color = (i == currentSelection) ? Color.white : Color.gray;
+            if (i < choices.Count)
+            {
+                if (i == currentSelection)
+                {
+                    optionTexts[i].color = Color.white; // Highlight selected option
+                }
+                else if (usedOptions.ContainsKey(choices[i].text))
+                {
+                    optionTexts[i].color = new Color(0.37f, 0.37f, 0.37f, 1f); // Keep previously used option darker
+                }
+                else
+                {
+                    optionTexts[i].color = new Color(0.64f, 0.64f, 0.64f, 1f);
+                }
+            }
+            else
+            {
+                optionTexts[i].text = "";
+            }
         }
     }
-
 
     private void SelectOption(int choiceIndex)
     {
         if (isTyping || !isDialogueActive) return;
 
-        string selectedChoice = inkStory.currentChoices[choiceIndex].text;
+        List<Choice> choices = inkStory.currentChoices;
 
-        if (usedOptions.ContainsKey(selectedChoice)) return; // Prevent duplicate selection
+        if (choiceIndex < 0 || choiceIndex >= choices.Count)
+        {
+            Debug.LogWarning($"Invalid choice index: {choiceIndex}");
+            return;  // Prevent out-of-range error
+        }
+
+        string selectedChoice = choices[choiceIndex].text;
 
         usedOptions[selectedChoice] = true;
 
-        // Type the player's response before continuing the dialogue
         StartCoroutine(TypePlayerResponse(selectedChoice, choiceIndex));
     }
+
 
     private IEnumerator TypePlayerResponse(string response, int choiceIndex)
     {
@@ -314,16 +335,20 @@ public class ComputerDialogue : MonoBehaviour
     {
         if (isDialogueActive && !isTyping)
         {
+            int maxOptions = inkStory.currentChoices.Count; // Get the correct number of options
+
             if (Input.GetKeyDown(KeyCode.W))  // Navigate up
             {
-                currentSelection = (currentSelection > 0) ? currentSelection - 1 : optionTexts.Length - 1;
+                currentSelection = (currentSelection - 1 + maxOptions) % maxOptions;
                 HighlightOption();
             }
+
             if (Input.GetKeyDown(KeyCode.S))  // Navigate down
             {
-                currentSelection = (currentSelection < optionTexts.Length - 1) ? currentSelection + 1 : 0;
+                currentSelection = (currentSelection + 1) % maxOptions;
                 HighlightOption();
             }
+
             if (Input.GetKeyDown(KeyCode.Space))  // Select option
             {
                 SelectOption(currentSelection);

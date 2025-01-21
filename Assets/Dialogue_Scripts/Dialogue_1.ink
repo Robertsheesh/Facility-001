@@ -23,6 +23,9 @@ You know me... or at least, you should. Listen, I don’t have much time. You ne
 + What the fuck is happening? 
 	-> what_is_happening 
 
++ Can I trust you? 
+	-> can_i_trust_you
+
 === where_am_i ===
 You're in what's left of the crew quarters. It used to be a safe zone, but things... changed. We had to abandon it.
 
@@ -44,8 +47,6 @@ Look, I don't have all the answers for you. You need to find a keycard to get th
 + Where do I find the keycard? 
 	-> keycard_location
 
-+ How do I rewrite it? 
-	-> rewrite_keycard
 
 === did_survive ===
 I... I don't know. We lost contact weeks ago. Some tried to escape. Most didn't make it.
@@ -69,9 +70,6 @@ Good. Move quickly, and stay quiet. I’ll do my best to guide you, but you're o
 
 === why_trust ===
 I stayed behind to help. That's all I can say for now. Just... trust me. You have to hurry!
-
-+ Where do I find the keycard? 
-	-> keycard_location
 
 + What the fuck is happening? 
 	-> what_is_happening 

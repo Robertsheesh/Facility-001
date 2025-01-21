@@ -62,7 +62,7 @@ public class ComputerCLI : MonoBehaviour
     void Start()
     {
         // Load saved state of message
-        hasCheckedMessages = PlayerPrefs.GetInt("HasCheckedMessages", 0) == 1;
+        hasCheckedMessages = false;  // Force it to false
 
         // Find the ComputerLogs script
         computerLogs = FindObjectOfType<ComputerLogs>();
@@ -198,7 +198,7 @@ public class ComputerCLI : MonoBehaviour
                 StartCoroutine(BlinkUnreadMessage()); // Start blinking effect
 
                 terminalOutput.text = "Last login: Mon Sep 17 23:22:09 UTC 2102\n";
-                terminalOutput.text += "\nType help to see all available commands.\n";
+                terminalOutput.text += "\nType 'help' to see all available commands.\n";
                 SuccessSound();
             }
             else
@@ -227,8 +227,8 @@ public class ComputerCLI : MonoBehaviour
             string unreadMessageText = (showUnreadMessage && !hasCheckedMessages) ? "Unread messages (1)\n" : "\n";
 
             terminalOutput.text = "Last login: Mon Sep 17 23:22:09 UTC 2102\n" +
-                                  unreadMessageText +
-                                  "\nType help to see all available commands.\n";
+                                  "\nType 'help' to see all available commands.\n\n" +
+                                  unreadMessageText;
         }
     }
 
@@ -272,6 +272,14 @@ public class ComputerCLI : MonoBehaviour
                 currentState = ComputerState.HelpMenu;
                 DeactivateAllCameras();  // Ensure cameras are turned off when exiting security
                 SuccessSound();
+            }
+            else if (currentState == ComputerState.HelpMenu)
+            {
+                if (input.ToLower() == "back")
+                {
+                    terminalOutput.text = "Invalid selection. Type 'help' to see available commands.\n";
+                    ErrorSound();
+                }
             }
             else if (currentState == ComputerState.Messaging)
             {
@@ -389,6 +397,7 @@ public class ComputerCLI : MonoBehaviour
         currentState = ComputerState.Messaging;
 
         DisableInput();
+        SuccessSound();
 
         if (!hasCheckedMessages)
         {
@@ -404,6 +413,7 @@ public class ComputerCLI : MonoBehaviour
     {
         EnableInput();
         terminalOutput.text += "\n[Transmission terminated]\n";
+        ErrorSound();
     }
 
     private void DisplayLogMenu()

@@ -6,7 +6,7 @@ public class DoorInteraction : MonoBehaviour
     public Transform doorTransform;       // The door that will open/close
     public float openAngle = 90f;         // The angle the door will open to
     public float doorOpenSpeed = 2f;      // Speed of the door opening/closing
-    public bool isOpen = false;           // Whether the door is currently open
+    public bool isOpen = true;           // Whether the door is currently open
     private bool isPlayerInRange = false; // Track if the player is in range to open the door
 
     public Text doorPromptText;           // Reference to the UI Text that shows the interaction prompt
