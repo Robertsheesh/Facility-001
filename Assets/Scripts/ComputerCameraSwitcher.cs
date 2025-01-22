@@ -20,6 +20,8 @@ public class ComputerInteraction : MonoBehaviour
     public PlayerInteraction PlayerInteractionScript; // Reference to your PlayerInteraction script
     public GameObject interactionUIParent; // Reference to the parent UI object
 
+    public ComputerDialogue dialogueSystem;
+
     void Start()
     {
         // Get player controller
@@ -69,43 +71,47 @@ public class ComputerInteraction : MonoBehaviour
                 Debug.LogError("PlayerInteractionScript not found!");
             }
         }
+        dialogueSystem = GetComponent<ComputerDialogue>();
+        if (dialogueSystem == null)
+        {
+            Debug.LogError("ComputerDialogue component not found on the GameObject!");
+        }
 
     }
 
     void Update()
     {
-        // Allow interaction only when the player is inside the trigger area and presses the left mouse button
+        // Prevent any interaction if dialogue is active
+        if (dialogueSystem != null && dialogueSystem.IsDialogueActive())
+        {
+            if (playerController != null)
+            {
+                playerController.canMove = false; // Disable all movement
+                playerController.isCrouching = false; // Force standing position
+                playerController.characterController.height = playerController.standingHeight;
+                playerController.standingCamera.Priority = 10;
+                playerController.crouchingCamera.Priority = 0;
+            }
+            return;  // Exit early to prevent any further input
+        }
+
+        if (isUsingComputer)
+        {
+            if (Input.GetKeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(0))
+            {
+                ExitComputerMode();
+            }
+        }
+
         if (Input.GetMouseButtonDown(0) && !interactionInProgress && isPlayerInRange)
         {
             Debug.Log("Player interacted with the computer");
             ToggleComputer();
         }
-
-        // Automatically exit the computer view when Escape is pressed for the pause menu
-        if (Input.GetKeyDown(KeyCode.Escape) && isUsingComputer)
-        {
-            Debug.Log("Switching back to player mode");
-            // Disable input field and reset focus when exiting computer
-            if (computerCLI != null)
-            {
-                computerCLI.DisableInput();
-            }
-
-            // Switch back to player camera
-            playerCamera.Priority = 10;      // Reactivate player camera
-            computerCamera.Priority = 0;     // Deactivate computer camera
-
-            Cursor.lockState = CursorLockMode.Locked; // Lock cursor for normal gameplay
-            Cursor.visible = false;
-
-            // Re-enable player movement
-            if (playerController != null)
-            {
-                playerController.canMove = true;
-                Debug.Log("Player movement enabled");
-            }
-        }
     }
+
+
+
 
     void ToggleComputer()
     {
@@ -158,41 +164,41 @@ public class ComputerInteraction : MonoBehaviour
                 computerCLI.EnableInput();
             }
         }
-        else
+    }
+
+    void ExitComputerMode()
+    {
+        Debug.Log("Switching back to player mode");
+        // Disable input field and reset focus when exiting computer
+        if (computerCLI != null)
         {
-            Debug.Log("Switching back to player mode");
-            // Disable input field and reset focus when exiting computer
-            if (computerCLI != null)
-            {
-                computerCLI.DisableInput();
-            }
-
-            // Switch back to player camera
-            playerCamera.Priority = 10;      // Reactivate player camera
-            computerCamera.Priority = 0;     // Deactivate computer camera
-
-            Cursor.lockState = CursorLockMode.Locked; // Lock cursor for normal gameplay
-            Cursor.visible = false;
-
-            if (interactionUIParent != null)
-            {
-                interactionUIParent.SetActive(true);  // Enable the entire parent object
-                Debug.Log("Hiding interaction UI parent");
-            }
-
-            // Re-enable player movement
-            if (playerController != null)
-            {
-                playerController.canMove = true;
-                Debug.Log("Player movement enabled");
-            }
+            computerCLI.DisableInput();
         }
 
+        // Switch back to player camera
+        playerCamera.Priority = 10;      // Reactivate player camera
+        computerCamera.Priority = 0;     // Deactivate computer camera
+
+        Cursor.lockState = CursorLockMode.Locked; // Lock cursor for normal gameplay
+        Cursor.visible = false;
+
+        if (interactionUIParent != null)
+        {
+            interactionUIParent.SetActive(true);  // Enable the entire parent object
+            Debug.Log("Hiding interaction UI parent");
+        }
+
+        // Re-enable player movement
+        if (playerController != null)
+        {
+            playerController.canMove = true;
+            Debug.Log("Player movement enabled");
+        }
         // Delay to allow proper interaction before resetting the flag
         Invoke("ResetInteraction", 0.2f); // Small delay to prevent multiple interactions in rapid succession
     }
 
-    private void ResetInteraction()
+        private void ResetInteraction()
     {
         Debug.Log("Resetting interaction");
         interactionInProgress = false;

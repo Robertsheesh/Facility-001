@@ -36,9 +36,11 @@ public class ComputerCLI : MonoBehaviour
 
     private bool isConfirmingRewrite = false;  // Track if the player is confirming the rewrite action
 
-    private ComputerLogs computerLogs;  // Reference to the ComputerLogs script
+    //private ComputerLogs computerLogs;  // Reference to the ComputerLogs script
 
-    private CardInsertScript cardInsertScript;
+    public CardInsertScript cardInsertScript;
+    public ComputerDialogue dialogueSystem;
+    public ComputerLogs computerLogs;
 
     private enum ComputerState { Login, HelpMenu, LogsMenu, SecurityMainMenu, CameraMenu, AccessControlMenu, ViewingLog, Messaging }
     private ComputerState currentState = ComputerState.Login;
@@ -56,19 +58,16 @@ public class ComputerCLI : MonoBehaviour
     private bool hasCheckedMessages = false; // Track if the player accessed messages
 
 
-    // Dialogue System
-    private ComputerDialogue dialogueSystem;
-
     void Start()
     {
         // Load saved state of message
         hasCheckedMessages = false;  // Force it to false
 
         // Find the ComputerLogs script
-        computerLogs = FindObjectOfType<ComputerLogs>();
+        //computerLogs = FindObjectOfType<ComputerLogs>();
 
         // Find Dialogue System Script
-        dialogueSystem = FindObjectOfType<ComputerDialogue>();
+        //dialogueSystem = FindObjectOfType<ComputerDialogue>();
 
         // Set initial terminal output
         terminalOutput.text = welcomeText;
@@ -79,11 +78,11 @@ public class ComputerCLI : MonoBehaviour
         // Disable the input field at the start (since player is not interacting initially)
         DisableInput();
 
-        cardInsertScript = FindObjectOfType<CardInsertScript>();
-        if (cardInsertScript == null)
-        {
-            Debug.LogError("CardInsertScript not found!");
-        }
+        //cardInsertScript = FindObjectOfType<CardInsertScript>();
+        //if (cardInsertScript == null)
+        //{
+        //    Debug.LogError("CardInsertScript not found!");
+        //}
     }
 
     // Save state when player quits
@@ -406,7 +405,7 @@ public class ComputerCLI : MonoBehaviour
         }
 
         // Start dialogue sequence
-        FindObjectOfType<ComputerDialogue>().StartDialogue();
+        dialogueSystem.StartDialogue();
     }
 
     public void DialogueEnded()
@@ -618,6 +617,7 @@ public class ComputerCLI : MonoBehaviour
         securityDisplay.texture = null;  // Clear the RawImage display
         currentCameraIndex = -1;  // No camera is currently active
     }
+
 
     // Keycard Processing Sound
     void StartKeycardProcessingSound()

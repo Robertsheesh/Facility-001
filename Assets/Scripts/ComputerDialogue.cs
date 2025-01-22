@@ -29,13 +29,24 @@ public class ComputerDialogue : MonoBehaviour
 
     private void Start()
     {
+        LoadDialogue(); // Load dialogue when the script starts
+    }
+
+    public void LoadDialogue()
+    {
         if (inkJSON == null)
         {
-            Debug.LogError("Ink JSON is not assigned. Please drag and drop the file in the inspector.");
+            Debug.LogError($"Ink JSON file not assigned in {gameObject.name}. Please assign a dialogue file in the Inspector.");
             return;
         }
 
         inkStory = new Story(inkJSON.text);
+    }
+
+    public void SetDialogue(TextAsset newDialogue)
+    {
+        inkJSON = newDialogue;
+        LoadDialogue();
     }
 
     public void StartDialogue()
@@ -49,6 +60,10 @@ public class ComputerDialogue : MonoBehaviour
         isDialogueActive = true;
         playerHUDPanel.SetActive(false);
 
+        // Enable black bars before animating
+        topBar.SetActive(true);
+        bottomBar.SetActive(true);
+
         // Retrieve npc_name from Ink story and update the title header
         if (inkStory.variablesState["npc_name"] != null)
         {
@@ -61,6 +76,11 @@ public class ComputerDialogue : MonoBehaviour
         }
 
         StartCoroutine(ShowCinematicBars());
+    }
+
+    public bool IsDialogueActive()
+    {
+        return isDialogueActive;
     }
 
     public void OnAccessComputer()
@@ -201,9 +221,6 @@ public class ComputerDialogue : MonoBehaviour
 
         HighlightOption();
     }
-
-
-
 
     private void HighlightOption()
     {

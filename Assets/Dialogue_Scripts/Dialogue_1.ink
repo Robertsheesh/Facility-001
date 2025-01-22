@@ -87,7 +87,7 @@ There might be. But time isn’t on your side. Stick to the plan, and don’t wa
 	-> keycard_location
 
 === keycard_location ===
-Ethan was the last one to have it. His room’s down the hall—Room C. He had a habit of hiding things, so you might have to dig around a bit. I’m counting on you to find it.
+Ethan was the last one to have it. His room’s down the hall. He had a habit of hiding things, so you might have to dig around a bit. I’m counting on you to find it.
 
 + How do I rewrite it? 
 	-> rewrite_keycard
