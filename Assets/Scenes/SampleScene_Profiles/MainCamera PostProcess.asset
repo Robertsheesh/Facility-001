@@ -295,7 +295,7 @@ MonoBehaviour:
     value: 1000
   ColorDepth:
     overrideState: 1
-    value: 0.5
+    value: 1
   DitherPattern:
     overrideState: 1
     value: {fileID: 2800000, guid: 2bab58d6916f2254a88c7a288552d740, type: 3}
