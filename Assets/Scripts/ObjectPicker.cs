@@ -25,6 +25,11 @@ public class ObjectPicker : MonoBehaviour
 
     public bool isFlashlight = false;  // Track if the picked-up object is a flashlight
 
+    [Header("Severed Hand Settings")]
+    public Vector3 severedHandPositionOffset = new Vector3(0.5f, -0.5f, 1.5f); // Position offset for the severed hand
+    public Vector3 severedHandRotationOffset = new Vector3(0f, 0f, 0f);        // Rotation offset for the severed hand
+    public bool isSeveredHand = false;
+
     [Header("Crowbar Settings")]
     public Vector3 crowbarPositionOffset = new Vector3(0.3f, -0.4f, 1.0f);  // Custom position offset for the crowbar
     public Vector3 crowbarRotationOffset = new Vector3(0f, -90f, 0f);  // Custom rotation offset for the crowbar
@@ -198,6 +203,18 @@ public class ObjectPicker : MonoBehaviour
                 pickedUpObject.transform.position = holdPosition;
                 pickedUpObject.transform.rotation = playerCamera.transform.rotation * Quaternion.Euler(pickupRotationOffset);
             }
+            else if (isSeveredHand) {
+
+                Vector3 holdPosition = playerCamera.transform.position
+                       + playerCamera.transform.forward * severedHandPositionOffset.z
+                       + playerCamera.transform.right * severedHandPositionOffset.x
+                       + playerCamera.transform.up * severedHandPositionOffset.y;
+
+                pickedUpObject.transform.position = holdPosition;
+
+                // Apply the rotation offset to the severed hand, using the camera's rotation as a base
+                pickedUpObject.transform.rotation = playerCamera.transform.rotation * Quaternion.Euler(severedHandRotationOffset);
+            }
             }
         }
 
@@ -217,7 +234,7 @@ public class ObjectPicker : MonoBehaviour
                 return;
             }
             // Check if the hit object is tagged as "Pickup", "Flashlight", "Keycard", "RewrittenKeycard", or "Crowbar"
-            if (hit.collider.CompareTag("Pickup") || hit.collider.CompareTag("Flashlight") || hit.collider.CompareTag("Keycard") || hit.collider.CompareTag("RewrittenKeycard") || hit.collider.CompareTag("Crowbar"))
+            if (hit.collider.CompareTag("Pickup") || hit.collider.CompareTag("Flashlight") || hit.collider.CompareTag("Keycard") || hit.collider.CompareTag("RewrittenKeycard") || hit.collider.CompareTag("Crowbar") || hit.collider.CompareTag("SeveredHand"))
             {
                 PickUpObject(hit.collider.gameObject);
             }
@@ -335,6 +352,11 @@ public class ObjectPicker : MonoBehaviour
                 {
                     pickedUpObject.SetActive(false);
                     isRewrittenKeycard = false;   // Reset the flag, but keep reference to Object
+                }
+                else if (pickedUpObject.CompareTag("SeveredHand"))
+                {
+                    pickedUpObject.SetActive(false);
+                    isSeveredHand = false;   // Reset the flag, but keep reference to Object
                 }
                 pickedUpObject = null;
 
@@ -578,6 +600,7 @@ public class ObjectPicker : MonoBehaviour
         isKeycard = false;
         isRewrittenKeycard = false;
         isCrowbar = false;
+        isSeveredHand = false;
 
         PlayUnequipSound();
 
@@ -598,6 +621,10 @@ public class ObjectPicker : MonoBehaviour
         else if (pickedUpObject.CompareTag("Crowbar"))
         {
             isCrowbar = true;  // Now we know the crowbar is equipped
+        }
+        else if (pickedUpObject.CompareTag("SeveredHand"))
+        {
+            isSeveredHand = true;
         }
 
         DisableColliders(pickedUpObject);
@@ -694,6 +721,11 @@ public class ObjectPicker : MonoBehaviour
                     pickedUpObject.SetActive(false);  // Deactivate keycards
                     isKeycard = false;      // Reset keycard flags
                     isRewrittenKeycard = false;
+                }
+                else if (pickedUpObject.CompareTag("SeveredHand"))
+                {
+                    pickedUpObject.SetActive(false);
+                    isSeveredHand= false;
                 }
 
                 Debug.Log("Unequipped: " + pickedUpObject.name);

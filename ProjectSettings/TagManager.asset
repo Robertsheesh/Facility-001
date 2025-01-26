@@ -18,6 +18,8 @@ TagManager:
   - Keycard
   - RewrittenKeycard
   - Crowbar
+  - SeveredHand
+  - RewrittenHand
   layers:
   - Default
   - TransparentFX
