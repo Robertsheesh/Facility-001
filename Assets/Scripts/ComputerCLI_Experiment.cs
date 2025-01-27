@@ -12,19 +12,21 @@ public class ComputerCLIExperiment : MonoBehaviour
     public AudioSource activationSound;
     public AudioSource errorSound;
     public AudioSource successSound;
+    public Light chamberElectricLight;
+    public GameObject handObject;
+    public Animator handAnimator;
 
-    private string welcomeText = "Aetheris Dynamics 2.21\nLogin:\n";
     private bool canType = false;
-    private bool isLoggedIn = false;
-    private bool isConfiguring = false;
-    private bool isActivating = false;
-    private Dictionary<string, string> chamberParameters = new Dictionary<string, string>();
+    private bool isChecking = false;
+    private bool isWarningScreen = false;
+    private int checkIndex = 0;
     private List<string> requiredParameters = new List<string> { "BOLTS_SECURE", "OIL_LEVEL", "COOLANT_LEVEL", "BATTERY_INSERTED", "BATTERY_CHARGE" };
 
     void Start()
     {
-        terminalOutput.text = welcomeText;
-        DisableInput();
+        ShowConfigurationScreen();
+        if (chamberElectricLight != null) chamberElectricLight.enabled = false;
+        handAnimator.enabled = false;  // Disable at start
     }
 
     public void EnableInput()
@@ -49,6 +51,12 @@ public class ComputerCLIExperiment : MonoBehaviour
         inputField.Select();
     }
 
+    private IEnumerator ChamberLightDelay()
+    {
+        yield return new WaitForSeconds(7.5f);
+        if (chamberElectricLight != null) chamberElectricLight.enabled = true;
+    }
+
     void Update()
     {
         if (Input.GetKeyDown(KeyCode.Return) && canType)
@@ -62,174 +70,98 @@ public class ComputerCLIExperiment : MonoBehaviour
         if (!string.IsNullOrWhiteSpace(input) && canType)
         {
             terminalOutput.text = "";
-            if (!isLoggedIn)
+
+            if (isChecking)
             {
-                HandleLogin(input);
+                DisplayNextParameter();
             }
-            else if (isConfiguring)
+            else if (isWarningScreen && input.ToLower() == "yes")
             {
-                HandleConfiguration(input);
+                StartCoroutine(StartChamberProcess());
             }
-            else if (isActivating)
+            else if (input.ToLower() == "check")
             {
-                HandleActivation(input);
+                isChecking = true;
+                checkIndex = 0;
+                DisplayNextParameter();
+            }
+            else if (input.ToLower() == "continue")
+            {
+                ShowWarningScreen();
             }
             else
             {
-                HandleCommands(input);
+                terminalOutput.text = "Unknown command. Type 'check' or 'continue'.\n";
+                errorSound.Play();
             }
+
             inputField.text = "";
             inputField.ActivateInputField();
             inputField.Select();
         }
     }
 
-    private void HandleLogin(string input)
+    private void ShowConfigurationScreen()
     {
-        if (input == "admin")
+        terminalOutput.text = "+-------------------------+\n" +
+                             "| Parameter         | Status |\n" +
+                             "+-------------------------+\n" +
+                             FormatParameterTable() +
+                             "+-------------------------+\n" +
+                             "Type 'check' to verify parameters.\n";
+    }
+
+    private void DisplayNextParameter()
+    {
+        if (checkIndex < requiredParameters.Count)
         {
-            isLoggedIn = true;
-            terminalOutput.text = "Welcome to Aetheris Dynamics System.\nType 'help' to see available commands.\n";
-            successSound.Play();
+            terminalOutput.text += requiredParameters[checkIndex] + "____________________OK\n";
+            checkIndex++;
         }
         else
         {
-            terminalOutput.text = "Login incorrect\nLogin:\n";
-            errorSound.Play();
+            terminalOutput.text += "\nALL SYSTEMS OPERATIONAL\nTYPE 'continue' TO START THE PROCESS";
+            isChecking = false;
         }
     }
 
-    private void HandleCommands(string input)
+    private void ShowWarningScreen()
     {
-        if (input.ToLower() == "help")
+        terminalOutput.text = "WARNING:\nEnsure the chamber is closed.\nAvoid exposure to the beam.\nContact medical immediately if exposed.\nAdverse effects include cognitive dissonance, extreme nausea, and hallucinations.\n\nDo you want to proceed? (Type 'yes' to proceed)";
+        isWarningScreen = true;
+    }
+
+    private IEnumerator StartChamberProcess()
+    {
+        activationSound.Play();
+        StartCoroutine(ChamberLightDelay());
+        yield return new WaitForSeconds(10f);
+        if (chamberElectricLight != null) chamberElectricLight.enabled = false;
+        // Play hand animation
+        handAnimator.enabled = true;
+        if (handAnimator != null)
         {
-            terminalOutput.text = "Available commands:\n - beam_chamber\n - logs\n - logout\n";
+            handAnimator.SetTrigger("ActivateHand");  // Ensure a trigger exists in Animator
         }
-        else if (input.ToLower() == "beam_chamber")
+        terminalOutput.text = "PROCESS COMPLETE. RETRIEVE HAND SAFELY.\n";
+        successSound.Play();
+        if (handObject != null)
         {
-            terminalOutput.text = "Biometric Reconstitution Chamber\nOptions:\n - configuration\n - activate\n - back\n";
-        }
-        else if (input.ToLower() == "configuration")
-        {
-            terminalOutput.text = "+-------------------------+\n" +
-                                 "| Parameter         | Status |\n" +
-                                 "+-------------------------+\n" +
-                                 FormatParameterTable() +
-                                 "+-------------------------+\n" +
-                                 "Type 'back' when done.\n";
-            isConfiguring = true;
-        }
-        else if (input.ToLower() == "activate")
-        {
-            if (ValidateParameters())
-            {
-                if (experimentDoor.IsDoorClosed())
-                {
-                    terminalOutput.text = "Parameters:\n" + FormatParameterTable() + "\nALL SYSTEMS OPERATIONAL\nTYPE CONTINUE TO START THE PROCESS";
-                    isActivating = true;
-                }
-                else
-                {
-                    terminalOutput.text = "ERROR: Close the chamber door first.\n";
-                    errorSound.Play();
-                }
-            }
-            else
-            {
-                terminalOutput.text = "ERROR: Missing or incorrect parameters. Check logs.\n";
-                errorSound.Play();
-            }
-        }
-        else if (input.ToLower() == "logs")
-        {
-            terminalOutput.text = "Chamber log:\n" + FormatParameterTable() + "\nType 'back' to return.\n";
-        }
-        else if (input.ToLower() == "logout")
-        {
-            isLoggedIn = false;
-            terminalOutput.text = welcomeText;
-        }
-        else if (input.ToLower() == "back")
-        {
-            terminalOutput.text = "Returning to the main menu.\nType 'help' for available commands.\n";
-            isConfiguring = false;
-            isActivating = false;
-        }
-        else
-        {
-            terminalOutput.text = "Unknown command. Type 'help' for options.\n";
-            errorSound.Play();
+            handObject.tag = "RewrittenHand";
+            Debug.Log("Hand tag changed to RewrittenHand");
         }
     }
 
     private string FormatParameterTable()
     {
         int paramColumnWidth = requiredParameters.Max(param => param.Length) + 2;
-        int statusColumnWidth = 6;  // Fixed width for "OK" + padding
-        int totalWidth = paramColumnWidth + statusColumnWidth + 7; // Account for table borders
-
-        string border = new string('-', totalWidth);
-        string result = $"| {"Parameter".PadRight(paramColumnWidth)} | {"Status".PadRight(statusColumnWidth)} |\n";
-        result += border + "\n";
+        int statusColumnWidth = 6;
+        string result = "";
 
         foreach (string param in requiredParameters)
         {
-            result += $"| {param.PadRight(paramColumnWidth)} | {"OK".PadRight(statusColumnWidth)} |\n";
+            result += string.Format("| {0,-18} | {1,-6} |\n", param, "OK");
         }
-        result += border + "\n";
-
         return result;
     }
-
-
-
-    private IEnumerator StartChamberProcess()
-    {
-
-        activationSound.Play();
-        yield return new WaitForSeconds(3f);
-        terminalOutput.text = "PROCESS COMPLETE. RETRIEVE HAND SAFELY.\n";
-        successSound.Play();
-    }
-
-    private bool ValidateParameters()
-    {
-        return true;
-    }
-
-    private void HandleActivation(string input)
-    {
-        if (input.ToLower() == "continue")
-        {
-            terminalOutput.text = "WARNING:\nEnsure the chamber is closed.\nAvoid exposure to the beam.\nContact medical immediately if exposed.\nAdverse effects include cognitive dissonance, extreme nausea, and hallucinations.\nTYPE CONTINUE TO PROCEED";
-            isActivating = false;
-            StartCoroutine(StartChamberProcess());
-        }
-        else
-        {
-            terminalOutput.text = "Invalid command. Type 'continue' to proceed.\n";
-        }
-    }
-
-    private void HandleConfiguration(string input)
-    {
-        if (input.ToLower() == "back")
-        {
-            isConfiguring = false;
-            terminalOutput.text = "Configuration complete. Type 'activate' to start.\n";
-            return;
-        }
-
-        string[] parts = input.Split(' ');
-        if (parts.Length == 2 && requiredParameters.Contains(parts[0].ToUpper()))
-        {
-            chamberParameters[parts[0].ToUpper()] = parts[1].ToUpper();
-            terminalOutput.text = "Parameter set: " + parts[0].ToUpper() + " " + parts[1].ToUpper() + "\n";
-        }
-        else
-        {
-            terminalOutput.text = "Invalid input. Format: PARAMETER VALUE\n";
-        }
-    }
-
 }

@@ -234,7 +234,7 @@ public class ObjectPicker : MonoBehaviour
                 return;
             }
             // Check if the hit object is tagged as "Pickup", "Flashlight", "Keycard", "RewrittenKeycard", or "Crowbar"
-            if (hit.collider.CompareTag("Pickup") || hit.collider.CompareTag("Flashlight") || hit.collider.CompareTag("Keycard") || hit.collider.CompareTag("RewrittenKeycard") || hit.collider.CompareTag("Crowbar") || hit.collider.CompareTag("SeveredHand"))
+            if (hit.collider.CompareTag("Pickup") || hit.collider.CompareTag("Flashlight") || hit.collider.CompareTag("Keycard") || hit.collider.CompareTag("RewrittenKeycard") || hit.collider.CompareTag("Crowbar") || hit.collider.CompareTag("SeveredHand") || hit.collider.CompareTag("RewrittenHand"))
             {
                 PickUpObject(hit.collider.gameObject);
             }
@@ -357,6 +357,11 @@ public class ObjectPicker : MonoBehaviour
                 {
                     pickedUpObject.SetActive(false);
                     isSeveredHand = false;   // Reset the flag, but keep reference to Object
+                }
+                else if (pickedUpObject.CompareTag("RewrittenHand"))
+                {
+                    pickedUpObject.SetActive(false);
+                    isSeveredHand = false;
                 }
                 pickedUpObject = null;
 
@@ -626,6 +631,10 @@ public class ObjectPicker : MonoBehaviour
         {
             isSeveredHand = true;
         }
+        else if (pickedUpObject.CompareTag("RewrittenHand"))
+        {
+            isSeveredHand = true;
+        }
 
         DisableColliders(pickedUpObject);
 
@@ -726,6 +735,11 @@ public class ObjectPicker : MonoBehaviour
                 {
                     pickedUpObject.SetActive(false);
                     isSeveredHand= false;
+                }
+                else if (pickedUpObject.CompareTag("RewrittenHand"))
+                {
+                    pickedUpObject.SetActive(false);
+                    isSeveredHand = false;
                 }
 
                 Debug.Log("Unequipped: " + pickedUpObject.name);
