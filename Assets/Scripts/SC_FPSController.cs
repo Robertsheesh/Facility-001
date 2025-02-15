@@ -60,6 +60,7 @@ public class SC_FPSController : MonoBehaviour
         if (crouchingCamera != null)
         {
             crouchingCamera.Priority = 0;
+            crouchingCamera.enabled= false;
         }
 
         if (standingCamera != null)
@@ -216,6 +217,7 @@ public class SC_FPSController : MonoBehaviour
 
         if (crouchKeyHeld && characterController.isGrounded)
         {
+            crouchingCamera.enabled = true;
             characterController.height = crouchHeight;
             crouchingCamera.Priority = 10;
             standingCamera.Priority = 0;
@@ -224,6 +226,7 @@ public class SC_FPSController : MonoBehaviour
         }
         else if (!crouchKeyHeld && isCrouching)
         {
+            crouchingCamera.enabled = false;
             characterController.height = standingHeight;
             standingCamera.Priority = 10;
             crouchingCamera.Priority = 0;

@@ -52,6 +52,14 @@ public class ObjectPicker : MonoBehaviour
     public Vector3 rewrittenKeycardPositionOffset = new Vector3(0.2f, -0.3f, 1.0f); // Adjust as needed
     public Vector3 rewrittenKeycardRotationOffset = new Vector3(0f, 90f, 0f);       // Adjust as needed
 
+    [Header("Bone Saw Settings")]
+    public Vector3 boneSawPositionOffset = new Vector3(0.2f, -0.3f, 1.0f); // Adjust as needed
+    public Vector3 boneSawRotationOffset = new Vector3(0f, 90f, 0f);       // Adjust as needed
+    public Vector3 sawingRotationOffset = new Vector3(0f, 0f, -45f); // Swing arc on Z-axis
+    public AudioSource boneSawAudioSource;  // Assign this in the inspector or dynamically
+    public bool isBoneSaw = false;
+    public bool isSawing = false;
+
     [Header("Sound Settings")]
     public AudioSource audioSource;  // The audio source for playing unequip sounds
     public AudioSource audioSourcePickup;  // The audio source for playing unequip sounds
@@ -127,6 +135,11 @@ public class ObjectPicker : MonoBehaviour
             HitWithCrowbar(); // Call the hitting function for the crowbar
         }
 
+        if (Input.GetMouseButtonDown(0) && isBoneSaw)
+        {
+            BoneSawSawing();
+        }
+
         // Detect input for switching items (number keys 1-9)
         for (int i = 1; i <= maxInventorySlots; i++)
         {
@@ -193,7 +206,7 @@ public class ObjectPicker : MonoBehaviour
                 pickedUpObject.transform.rotation = playerCamera.transform.rotation * Quaternion.Euler(crowbarRotationOffset);
             }
             else if (pickedUpObject != null && isPickupObject)
-                {
+            {
                 // Use custom "PickUp" settings for positioning
                 Vector3 holdPosition = playerCamera.transform.position
                                        + playerCamera.transform.forward * pickupPositionOffset.z
@@ -203,7 +216,8 @@ public class ObjectPicker : MonoBehaviour
                 pickedUpObject.transform.position = holdPosition;
                 pickedUpObject.transform.rotation = playerCamera.transform.rotation * Quaternion.Euler(pickupRotationOffset);
             }
-            else if (isSeveredHand) {
+            else if (isSeveredHand)
+            {
 
                 Vector3 holdPosition = playerCamera.transform.position
                        + playerCamera.transform.forward * severedHandPositionOffset.z
@@ -215,8 +229,20 @@ public class ObjectPicker : MonoBehaviour
                 // Apply the rotation offset to the severed hand, using the camera's rotation as a base
                 pickedUpObject.transform.rotation = playerCamera.transform.rotation * Quaternion.Euler(severedHandRotationOffset);
             }
+            else if (isBoneSaw)
+            {
+
+                Vector3 holdPosition = playerCamera.transform.position
+                                       + playerCamera.transform.forward * boneSawPositionOffset.z
+                                       + playerCamera.transform.right * boneSawPositionOffset.x
+                                       + playerCamera.transform.up * boneSawPositionOffset.y;
+
+                pickedUpObject.transform.position = holdPosition;
+                pickedUpObject.transform.rotation = playerCamera.transform.rotation * Quaternion.Euler(boneSawRotationOffset);
+
             }
         }
+    }
 
     // Try to pick up an object in front of the player
     void TryPickUpObject()
@@ -234,12 +260,77 @@ public class ObjectPicker : MonoBehaviour
                 return;
             }
             // Check if the hit object is tagged as "Pickup", "Flashlight", "Keycard", "RewrittenKeycard", or "Crowbar"
-            if (hit.collider.CompareTag("Pickup") || hit.collider.CompareTag("Flashlight") || hit.collider.CompareTag("Keycard") || hit.collider.CompareTag("RewrittenKeycard") || hit.collider.CompareTag("Crowbar") || hit.collider.CompareTag("SeveredHand") || hit.collider.CompareTag("RewrittenHand"))
+            if (hit.collider.CompareTag("Pickup") || hit.collider.CompareTag("Flashlight") || hit.collider.CompareTag("Keycard") || hit.collider.CompareTag("RewrittenKeycard") || hit.collider.CompareTag("Crowbar") || hit.collider.CompareTag("SeveredHand") || hit.collider.CompareTag("RewrittenHand") || hit.collider.CompareTag("BoneSaw"))
             {
                 PickUpObject(hit.collider.gameObject);
             }
         }
     }
+
+    private void BoneSawSawing()
+    {
+        if (!isBoneSaw) return; // Only proceed if the saw is equipped
+
+        isSawing = true;
+
+        // Define motion parameters
+        float sawSpeed = 1f; // Speed of the motion
+        float sawRange = 9f; // Range of the motion along the Z-axis (forward and backward)
+        Vector3 sawInitialPosition = playerCamera.transform.position
+                                     + playerCamera.transform.forward * boneSawPositionOffset.z
+                                     + playerCamera.transform.right * boneSawPositionOffset.x
+                                     + playerCamera.transform.up * boneSawPositionOffset.y;
+
+        Vector3 forwardPosition = sawInitialPosition + playerCamera.transform.forward * sawRange;
+        Vector3 backwardPosition = sawInitialPosition - playerCamera.transform.forward * sawRange;
+
+        // Back-and-forth motion logic
+        float pingPong = Mathf.PingPong(Time.time * sawSpeed, 1); // Creates smooth oscillation between 0 and 1
+        pickedUpObject.transform.position = Vector3.Lerp(backwardPosition, forwardPosition, pingPong);
+
+        Debug.Log($"Saw Position: {pickedUpObject.transform.position}");
+
+        // Detect objects in range for sawing
+        RaycastHit hit;
+        if (Physics.Raycast(playerCamera.transform.position, playerCamera.transform.forward, out hit, 2.5f))
+        {
+            Debug.Log("Sawing: " + hit.collider.name);
+
+            // Play sawing sound
+            if (boneSawAudioSource != null && !boneSawAudioSource.isPlaying)
+            {
+                boneSawAudioSource.Play();
+            }
+        }
+        else
+        {
+            // Stop sound if no object is in range
+            if (boneSawAudioSource != null && boneSawAudioSource.isPlaying)
+            {
+                boneSawAudioSource.Stop();
+            }
+        }
+
+        // Stop the manual motion when the mouse button is released
+        if (!Input.GetMouseButton(0))
+        {
+            StopSawMotion();
+        }
+    }
+
+    private void StopSawMotion()
+    {
+        if (pickedUpObject != null)
+        {
+            // Reset the saw to its original position when stopping
+            pickedUpObject.transform.localPosition = boneSawPositionOffset;
+            Debug.Log("Saw motion stopped.");
+        }
+
+        isSawing = false;
+    }
+
+
 
     // Crowbar hitting mechanic
     void HitWithCrowbar()
@@ -274,6 +365,7 @@ public class ObjectPicker : MonoBehaviour
             // Play hit sound or effects here (optional)
         }
     }
+
     void ThrowObject()
     {
         // Check if the player is holding an object tagged as "Pickup"
@@ -362,6 +454,11 @@ public class ObjectPicker : MonoBehaviour
                 {
                     pickedUpObject.SetActive(false);
                     isSeveredHand = false;
+                }
+                else if (pickedUpObject.CompareTag("BoneSaw"))
+                {
+                    pickedUpObject.SetActive(false);
+                    isBoneSaw = false;
                 }
                 pickedUpObject = null;
 
@@ -606,6 +703,7 @@ public class ObjectPicker : MonoBehaviour
         isRewrittenKeycard = false;
         isCrowbar = false;
         isSeveredHand = false;
+        isBoneSaw= false;
 
         PlayUnequipSound();
 
@@ -635,6 +733,11 @@ public class ObjectPicker : MonoBehaviour
         {
             isSeveredHand = true;
         }
+        else if (pickedUpObject.CompareTag("BoneSaw"))
+        {
+            isBoneSaw = true;
+        }
+
 
         DisableColliders(pickedUpObject);
 
@@ -740,6 +843,11 @@ public class ObjectPicker : MonoBehaviour
                 {
                     pickedUpObject.SetActive(false);
                     isSeveredHand = false;
+                }
+                else if (pickedUpObject.CompareTag("BoneSaw"))
+                {
+                    pickedUpObject.SetActive(false);
+                    isBoneSaw = false;
                 }
 
                 Debug.Log("Unequipped: " + pickedUpObject.name);

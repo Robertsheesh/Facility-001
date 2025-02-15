@@ -15,6 +15,7 @@ public class ComputerCLIExperiment : MonoBehaviour
     public Light chamberElectricLight;
     public GameObject handObject;
     public Animator handAnimator;
+    public Animator beamMachine;
 
     private bool canType = false;
     private bool isChecking = false;
@@ -27,6 +28,7 @@ public class ComputerCLIExperiment : MonoBehaviour
         ShowConfigurationScreen();
         if (chamberElectricLight != null) chamberElectricLight.enabled = false;
         handAnimator.enabled = false;  // Disable at start
+        beamMachine.enabled = false;
     }
 
     public void EnableInput()
@@ -135,7 +137,14 @@ public class ComputerCLIExperiment : MonoBehaviour
     {
         activationSound.Play();
         StartCoroutine(ChamberLightDelay());
-        yield return new WaitForSeconds(10f);
+
+        yield return new WaitForSeconds(3.5f);
+        beamMachine.enabled = true;
+        if (beamMachine != null)
+        {
+            beamMachine.SetTrigger("ActivateBeam");
+        }
+        yield return new WaitForSeconds(7.5f);
         if (chamberElectricLight != null) chamberElectricLight.enabled = false;
         // Play hand animation
         handAnimator.enabled = true;
