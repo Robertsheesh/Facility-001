@@ -177,7 +177,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6050e2d5de785ce4d931e4dbdbf2d755, type: 3}
   m_Name: ChromaticAberration
   m_EditorClassIdentifier: 
-  active: 1
+  active: 0
   enabled:
     overrideState: 1
     value: 1
@@ -187,7 +187,7 @@ MonoBehaviour:
     defaultState: 1
   intensity:
     overrideState: 1
-    value: 0
+    value: 0.337
   fastMode:
     overrideState: 0
     value: 0
@@ -237,22 +237,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 556797029e73b2347956b6579e77e05b, type: 3}
   m_Name: DepthOfField
   m_EditorClassIdentifier: 
-  active: 0
+  active: 1
   enabled:
     overrideState: 1
     value: 1
   focusDistance:
     overrideState: 1
-    value: 2.5
+    value: 1
   aperture:
     overrideState: 1
-    value: 0.1
+    value: 2.5
   focalLength:
     overrideState: 1
-    value: 14
+    value: 35
   kernelSize:
     overrideState: 1
-    value: 0
+    value: 3
 --- !u!114 &-1819497926182981019
 MonoBehaviour:
   m_ObjectHideFlags: 3
