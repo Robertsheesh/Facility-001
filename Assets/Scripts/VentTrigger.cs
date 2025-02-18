@@ -5,7 +5,7 @@ public class VentTrigger : MonoBehaviour
     public Animator ventAnimator;             // Animator for vent open animation
     public float openImpactThreshold = 5f;    // Minimum impact force required to open the vent
     public AudioSource ventOpenSound;         // Sound to play when the vent opens
-    private bool isOpen = false;              // Tracks if the vent is already open
+    public bool isOpen = false;              // Tracks if the vent is already open
 
     // This method is called when a collision happens on this GameObject
     private void OnCollisionEnter(Collision collision)

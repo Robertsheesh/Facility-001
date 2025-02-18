@@ -6,6 +6,7 @@ public class FootstepSoundController : MonoBehaviour
     public AudioClip concreteSound;
     public AudioClip metalSound;
     public AudioClip waterSound; // Add water footstep sound
+    public AudioClip ventSound;
     private CharacterController characterController;
 
     public float walkStepRate = 0.5f;  // Time between footstep sounds when walking
@@ -107,6 +108,9 @@ public class FootstepSoundController : MonoBehaviour
                             break;
                         case "Metal":
                             clipToPlay = metalSound;
+                            break;
+                        case "Vent":
+                            clipToPlay = ventSound;
                             break;
                         default:
                             Debug.Log("Surface material not recognized.");

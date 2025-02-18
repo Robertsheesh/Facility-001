@@ -21,6 +21,8 @@ TagManager:
   - SeveredHand
   - RewrittenHand
   - BoneSaw
+  - DoorSummer
+  - VentTrigger
   layers:
   - Default
   - TransparentFX

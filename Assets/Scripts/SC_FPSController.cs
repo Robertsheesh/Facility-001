@@ -31,6 +31,8 @@ public class SC_FPSController : MonoBehaviour
 
     [HideInInspector]
     public bool canMove = true;
+    public bool canMoveNormally = true;
+    private bool isForcedCrouch = false;
 
     private bool isJumping = false;
     public bool isCrouching = false;
@@ -89,7 +91,7 @@ public class SC_FPSController : MonoBehaviour
         {
             HandleNoclipMovement();
         }
-        else
+        else if (canMoveNormally) // Prevent normal movement while climbing the vent
         {
             HandleNormalMovement();
         }
@@ -113,9 +115,15 @@ public class SC_FPSController : MonoBehaviour
         float horizontalInput = Input.GetAxis("Horizontal");
 
         bool isRunning = Input.GetKey(KeyCode.LeftShift) && verticalInput > 0 && !isCrouching;
+
         bool isCrouchingKeyHeld = Input.GetKey(KeyCode.LeftControl);
 
-        HandleCrouch(isCrouchingKeyHeld);
+        // Check if the player is inside a forced crouch zone
+        if (!isForcedCrouch)
+        {
+            HandleCrouch(isCrouchingKeyHeld);
+        }
+
 
         float currentWalkingSpeed = isCrouching ? crouchSpeed : (isInWater ? waterWalkingSpeed : normalWalkingSpeed);
         float currentRunningSpeed = isInWater ? waterRunningSpeed : normalRunningSpeed;
@@ -236,6 +244,44 @@ public class SC_FPSController : MonoBehaviour
 
         SyncCameraRotation();
     }
+
+    public void ForceCrouch(bool shouldCrouch)
+    {
+
+        isForcedCrouch = shouldCrouch; // Track if we are in a forced crouch area
+
+        if (shouldCrouch)
+        {
+            if (!isCrouching)
+            {
+                Debug.Log("Forcing player to crouch...");
+                crouchingCamera.enabled = true;
+                characterController.height = crouchHeight;
+                crouchingCamera.Priority = 10;
+                standingCamera.Priority = 0;
+                isCrouching = true;
+                noise = crouchingCamera.GetCinemachineComponent<CinemachineBasicMultiChannelPerlin>();
+            }
+        }
+        else
+        {
+            if (isCrouching)
+            {
+                Debug.Log("Standing up...");
+
+                crouchingCamera.enabled = false;
+                characterController.height = standingHeight;
+                standingCamera.Priority = 10;
+                crouchingCamera.Priority = 0;
+                isCrouching = false;
+                noise = standingCamera.GetCinemachineComponent<CinemachineBasicMultiChannelPerlin>();
+            }
+        }
+
+        // Sync camera rotation
+        SyncCameraRotation();
+    }
+
 
     void HandleLookRotation()
     {

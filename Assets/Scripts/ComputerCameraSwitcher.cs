@@ -125,14 +125,7 @@ public class ComputerInteraction : MonoBehaviour
         if (isUsingComputer)
         {
             // Hide all interaction texts
-            PlayerInteractionScript.HideAllInteractionTexts();
-
-            // Explicitly hide the computer interaction text (in case it stays visible)
-            if (PlayerInteractionScript.computerInteractionText != null)
-            {
-                Debug.Log("Hiding computer interaction text");
-                PlayerInteractionScript.computerInteractionText.enabled = false;
-            }
+            PlayerInteractionScript.SetCrosshairDefault();
 
             Debug.Log("Switching to computer mode");
             // Switch to computer camera

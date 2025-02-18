@@ -75,17 +75,8 @@ public class ObjectPicker : MonoBehaviour
 
     public PlayerInteraction playerInteractionUI;
 
-    // Inspect the item first
-    public InspectManager inspectManager; // Reference to InspectManager
-    private bool isInspecting = false;
-    private GameObject objectToEquipAfterInspect; // Store the object to equip
-
     void Start()
     {
-        if (inspectManager == null)
-        {
-            inspectManager = FindObjectOfType<InspectManager>();
-        }
         if (impulseSource == null)
         {
             // Dynamically find the Impulse Source component attached to the crowbar
@@ -123,14 +114,7 @@ public class ObjectPicker : MonoBehaviour
         // Detect input for picking up the object (e.g., pressing E)
         if (Input.GetKeyDown(KeyCode.E))
         {
-            if (isInspecting)
-            {
-                EquipItemAfterInspect(); // Equip the item after inspection
-            }
-            else
-            {
-                TryPickUpObject(); // Start inspecting
-            }
+            TryPickUpObject();  // Try to pick up a new object
         }
 
         // Detect input for dropping the object (press G to drop)
@@ -278,42 +262,8 @@ public class ObjectPicker : MonoBehaviour
             // Check if the hit object is tagged as "Pickup", "Flashlight", "Keycard", "RewrittenKeycard", or "Crowbar"
             if (hit.collider.CompareTag("Pickup") || hit.collider.CompareTag("Flashlight") || hit.collider.CompareTag("Keycard") || hit.collider.CompareTag("RewrittenKeycard") || hit.collider.CompareTag("Crowbar") || hit.collider.CompareTag("SeveredHand") || hit.collider.CompareTag("RewrittenHand") || hit.collider.CompareTag("BoneSaw"))
             {
-                InspectItem(hitObject);
+                PickUpObject(hit.collider.gameObject);
             }
-        }
-    }
-
-    // Handle the inspection before equipping
-    void InspectItem(GameObject obj)
-    {
-        if (inspectManager != null)
-        {
-            inspectManager.InspectItem(obj.GetComponent<InspectableObject>()); // Start inspection
-            isInspecting = true;
-            objectToEquipAfterInspect = obj; // Store for equipping later
-        }
-    }
-
-    // Equip the item after inspection
-    void EquipItemAfterInspect()
-    {
-        if (objectToEquipAfterInspect != null)
-        {
-            pickedUpObject = objectToEquipAfterInspect;
-            objectToEquipAfterInspect = null;
-
-            isInspecting = false;
-            inspectManager.ExitInspect(); // Close the inspect mode
-
-            // Perform the normal pickup process
-            Rigidbody rb = pickedUpObject.GetComponent<Rigidbody>();
-            if (rb != null)
-            {
-                rb.isKinematic = true; // Disable physics
-            }
-
-            pickedUpObject.SetActive(true);
-            Debug.Log("Equipped: " + pickedUpObject.name);
         }
     }
 
@@ -465,7 +415,7 @@ public class ObjectPicker : MonoBehaviour
         // Check if the object is tagged as "PickUp"
         if (obj.CompareTag("Pickup"))
         {
-            isPickupObject= true;
+            isPickupObject = true;
 
             if (playerInteractionUI != null)
             {
@@ -753,7 +703,7 @@ public class ObjectPicker : MonoBehaviour
         isRewrittenKeycard = false;
         isCrowbar = false;
         isSeveredHand = false;
-        isBoneSaw= false;
+        isBoneSaw = false;
 
         PlayUnequipSound();
 
@@ -887,7 +837,7 @@ public class ObjectPicker : MonoBehaviour
                 else if (pickedUpObject.CompareTag("SeveredHand"))
                 {
                     pickedUpObject.SetActive(false);
-                    isSeveredHand= false;
+                    isSeveredHand = false;
                 }
                 else if (pickedUpObject.CompareTag("RewrittenHand"))
                 {
