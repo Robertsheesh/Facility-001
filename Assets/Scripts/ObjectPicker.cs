@@ -25,6 +25,13 @@ public class ObjectPicker : MonoBehaviour
 
     public bool isFlashlight = false;  // Track if the picked-up object is a flashlight
 
+    [Header("Medical Settings")]
+    public GameObject medicalObject;  // Assign this in the inspector
+    public Vector3 medicalPositionOffset = new Vector3(0.5f, -0.5f, 1.5f); // Position offset for the flashlight
+    public Vector3 medicalRotationOffset = new Vector3(0f, 0f, 0f);        // Rotation offset for the flashlight
+
+    public bool isMedical = false;  // Track if the picked-up object is a flashlight
+
     [Header("Severed Hand Settings")]
     public Vector3 severedHandPositionOffset = new Vector3(0.5f, -0.5f, 1.5f); // Position offset for the severed hand
     public Vector3 severedHandRotationOffset = new Vector3(0f, 0f, 0f);        // Rotation offset for the severed hand
@@ -115,6 +122,11 @@ public class ObjectPicker : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.E))
         {
             TryPickUpObject();  // Try to pick up a new object
+        }
+
+        if (Input.GetMouseButtonDown(0) && isMedical)
+        {
+            StartCoroutine(UseMedSyringe());
         }
 
         // Detect input for dropping the object (press G to drop)
@@ -241,6 +253,16 @@ public class ObjectPicker : MonoBehaviour
                 pickedUpObject.transform.rotation = playerCamera.transform.rotation * Quaternion.Euler(boneSawRotationOffset);
 
             }
+            else if (isMedical) // Medical syringe
+            {
+                Vector3 holdPosition = playerCamera.transform.position
+                                       + playerCamera.transform.forward * medicalPositionOffset.z
+                                       + playerCamera.transform.right * medicalPositionOffset.x
+                                       + playerCamera.transform.up * medicalPositionOffset.y;
+
+                pickedUpObject.transform.position = holdPosition;
+                pickedUpObject.transform.rotation = playerCamera.transform.rotation * Quaternion.Euler(medicalRotationOffset);
+            }
         }
     }
 
@@ -260,7 +282,7 @@ public class ObjectPicker : MonoBehaviour
                 return;
             }
             // Check if the hit object is tagged as "Pickup", "Flashlight", "Keycard", "RewrittenKeycard", or "Crowbar"
-            if (hit.collider.CompareTag("Pickup") || hit.collider.CompareTag("Flashlight") || hit.collider.CompareTag("Keycard") || hit.collider.CompareTag("RewrittenKeycard") || hit.collider.CompareTag("Crowbar") || hit.collider.CompareTag("SeveredHand") || hit.collider.CompareTag("RewrittenHand") || hit.collider.CompareTag("BoneSaw"))
+            if (hit.collider.CompareTag("Pickup") || hit.collider.CompareTag("Flashlight") || hit.collider.CompareTag("Keycard") || hit.collider.CompareTag("RewrittenKeycard") || hit.collider.CompareTag("Crowbar") || hit.collider.CompareTag("SeveredHand") || hit.collider.CompareTag("RewrittenHand") || hit.collider.CompareTag("BoneSaw") || hit.collider.CompareTag("MedSyringe"))
             {
                 PickUpObject(hit.collider.gameObject);
             }
@@ -366,6 +388,61 @@ public class ObjectPicker : MonoBehaviour
         }
     }
 
+    private IEnumerator UseMedSyringe()
+    {
+        // Safety check
+        if (pickedUpObject == null)
+        {
+            Debug.LogError("MedSyringe is null. Cannot use.");
+            yield break;
+        }
+
+        Debug.Log("Using MedSyringe...");
+        float animationDuration = 0.5f; // Duration of the downward movement
+        Vector3 startPos = pickedUpObject.transform.position;
+        Vector3 endPos = startPos + Vector3.down * 5f; // Move downward
+
+        float elapsedTime = 0f;
+        while (elapsedTime < animationDuration)
+        {
+            if (pickedUpObject == null) yield break; // If it gets destroyed, exit
+
+            pickedUpObject.transform.position = Vector3.Lerp(startPos, endPos, elapsedTime / animationDuration);
+            elapsedTime += Time.deltaTime;
+            yield return null;
+        }
+
+        // Ensure it reaches final position
+        if (pickedUpObject != null)
+        {
+            pickedUpObject.transform.position = endPos;
+        }
+
+
+        // Ensure it reaches final position
+        if (pickedUpObject != null)
+        {
+            pickedUpObject.transform.position = endPos;
+        }
+
+        yield return new WaitForSeconds(0.2f); // Small delay before removing
+        pickedUpObject.SetActive(false);
+
+        // Remove from inventory safely
+        if (pickedUpObject != null)
+        {
+            RemoveItemFromInventory(pickedUpObject);
+            Destroy(pickedUpObject);
+            pickedUpObject = null;
+        }
+
+        isMedical = false;
+
+        Debug.Log("MedSyringe used and removed.");
+    }
+
+
+
     void ThrowObject()
     {
         // Check if the player is holding an object tagged as "Pickup"
@@ -459,6 +536,11 @@ public class ObjectPicker : MonoBehaviour
                 {
                     pickedUpObject.SetActive(false);
                     isBoneSaw = false;
+                }
+                else if (pickedUpObject.CompareTag("MedSyringe"))
+                {
+                    pickedUpObject.SetActive(false);
+                    isMedical = false;
                 }
                 pickedUpObject = null;
 
@@ -704,6 +786,7 @@ public class ObjectPicker : MonoBehaviour
         isCrowbar = false;
         isSeveredHand = false;
         isBoneSaw = false;
+        isMedical= false;
 
         PlayUnequipSound();
 
@@ -736,6 +819,10 @@ public class ObjectPicker : MonoBehaviour
         else if (pickedUpObject.CompareTag("BoneSaw"))
         {
             isBoneSaw = true;
+        }
+        else if (pickedUpObject.CompareTag("MedSyringe"))
+        {
+            isMedical = true;
         }
 
 
@@ -849,6 +936,11 @@ public class ObjectPicker : MonoBehaviour
                     pickedUpObject.SetActive(false);
                     isBoneSaw = false;
                 }
+                else if (pickedUpObject.CompareTag("MedSyringe"))
+                {
+                    pickedUpObject.SetActive(false);
+                    isMedical = false;
+                }
 
                 Debug.Log("Unequipped: " + pickedUpObject.name);
 
@@ -949,24 +1041,17 @@ public class ObjectPicker : MonoBehaviour
         if (slotToRemove != -1)
         {
             inventory.Remove(slotToRemove);
-            Debug.Log("Removed item from inventory: " + obj.name + " from slot " + slotToRemove);
+            Debug.Log("Removed item from inventory: " + obj.name);
 
             // If the removed item was the currently selected one, clear it
             if (pickedUpObject == obj)
             {
                 pickedUpObject = null;
             }
-
-            // Log the contents of the inventory
-            Debug.Log("Current Inventory Contents:");
-            foreach (var kvp in inventory)
-            {
-                Debug.Log($"Slot {kvp.Key}: {kvp.Value.name}");
-            }
         }
         else
         {
-            Debug.LogError("Failed to remove item from inventory: Item not found.");
+            Debug.LogError("Failed to remove MedSyringe: Not found in inventory.");
         }
     }
 

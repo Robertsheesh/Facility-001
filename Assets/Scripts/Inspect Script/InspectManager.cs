@@ -58,11 +58,11 @@ public class InspectManager : MonoBehaviour
             if (Input.GetMouseButton(0)) // Left mouse button
             {
                 float rotX = Input.GetAxis("Mouse X") * rotationSpeed;
-                float rotY = Input.GetAxis("Mouse Y") * rotationSpeed;
+                //float rotY = Input.GetAxis("Mouse Y") * rotationSpeed;
 
                 // Rotate based on camera's view direction
                 currentObject.transform.Rotate(Camera.main.transform.up, -rotX, Space.World);
-                currentObject.transform.Rotate(Camera.main.transform.right, rotY, Space.World);
+                //currentObject.transform.Rotate(Camera.main.transform.right, rotY, Space.World);
             }
 
             // Zoom: Move object towards the camera with clamped distance
@@ -163,6 +163,7 @@ public class InspectManager : MonoBehaviour
         if (playerController != null)
         {
             playerController.canMove = false;
+            playerController.canMoveNormally= false;
         }
 
         // Unlock and show cursor
@@ -227,6 +228,7 @@ public class InspectManager : MonoBehaviour
         if (playerController != null)
         {
             playerController.canMove = true;
+            playerController.canMoveNormally = true;
         }
 
         if (depthOfField != null)
