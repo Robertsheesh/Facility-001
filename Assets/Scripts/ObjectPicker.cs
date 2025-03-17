@@ -127,6 +127,7 @@ public class ObjectPicker : MonoBehaviour
         if (Input.GetMouseButtonDown(0) && isMedical)
         {
             StartCoroutine(UseMedSyringe());
+            FindObjectOfType<PlayerHealth>().UseMedSyringe();
         }
 
         // Detect input for dropping the object (press G to drop)
