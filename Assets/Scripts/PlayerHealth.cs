@@ -1,20 +1,20 @@
 ﻿using UnityEngine;
 using UnityEngine.UI;
 using System.Collections;
+using Cinemachine;
+using UnityEngine.Rendering.PostProcessing;
 
 public class PlayerHealth : MonoBehaviour
 {
     public float health = 100f;
     public Text healthText;  // Assign a UI Text to display health
     public AudioSource breathingAudioSource;  // Audio source for the breathing sound
-    public AudioSource syringeUseSound; // Sound effect for using the med syringe
     private bool isWearingSuit = false; // Track if the suit is equipped
-    private bool isHealing = false;  // Prevent multiple uses of the syringe
 
     [Header("Fall Damage Settings")]
-    public float minFallHeight = 3f; // Minimum height before taking fall damage
+    public float minFallHeight = 8f; // Minimum height before taking fall damage
     public float maxFallHeight = 10f; // Height at which max fall damage is applied
-    public float maxFallDamage = 50f; // Max damage taken from a fall
+    public float maxFallDamage = 70f; // Max damage taken from a fall
     private float lastGroundY; // Stores last Y position when grounded
     private bool isGrounded = true; // Track if the player is on the ground
     public AudioSource fallDamageSound;
@@ -23,6 +23,23 @@ public class PlayerHealth : MonoBehaviour
     public Image bloodOverlay;  // 🩸 UI Image for blood overlay
     public float minHealthForEffect = 60f; // Health threshold to start showing blood
     public float maxOpacityHealthThreshold = 10f; // Health where blood is fully visible
+
+    [Header("Damage Screen Effect")]
+    public Camera playerCamera;  // Reference to the main player camera
+    private bool isDistorting = false;
+
+    public CinemachineVirtualCamera playerCamera1; // Assign in Inspector
+    private CinemachineBasicMultiChannelPerlin healthCameraNoise; // Reference to camera shake effect
+
+    [Header("Healing Effect")]
+    public Image healingOverlay; // Assign the healing overlay PNG in the inspector
+    public AudioSource syringeUseSound; // Sound effect for using the med syringe
+    private bool isHealing = false;  // Prevent multiple uses of the syringe
+
+    [Header("Post Processing")]
+    public PostProcessVolume postProcessingVolume;
+    private ColorGrading colorGrading;
+
 
     private CharacterController characterController; // Reference to the CharacterController
 
@@ -34,6 +51,23 @@ public class PlayerHealth : MonoBehaviour
         if (bloodOverlay != null)
         {
             SetBloodOverlayAlpha(0); // Ensure the overlay starts fully invisible
+        }
+        // Get Cinemachine Noise component from player camera
+        if (playerCamera != null)
+        {
+            healthCameraNoise = playerCamera1.GetCinemachineComponent<CinemachineBasicMultiChannelPerlin>();
+        }
+        if (postProcessingVolume != null)
+        {
+            postProcessingVolume.profile.TryGetSettings(out colorGrading);
+            if (colorGrading == null)
+            {
+                Debug.LogError("Color Grading not found in Post Process Volume!");
+            }
+        }
+        else
+        {
+            Debug.LogError("No PostProcessVolume assigned!");
         }
     }
 
@@ -47,27 +81,47 @@ public class PlayerHealth : MonoBehaviour
 
         HandleFallDamage();
         UpdateBloodOverlay();
+        UpdateSaturationEffect();
+        UpdateCameraShake();
+    }
+
+    void UpdateSaturationEffect()
+    {
+        if (colorGrading == null) return;
+
+        // If health is above 50, reset saturation
+        if (health >= 50)
+        {
+            colorGrading.saturation.value = 0;  // Default saturation
+        }
+        else
+        {
+            // Reduce saturation as health drops
+            float newSaturation = Mathf.Lerp(-100, 0, health / 50f);
+            colorGrading.saturation.value = newSaturation;
+        }
     }
 
     void UpdateBloodOverlay()
     {
         if (bloodOverlay == null) return;
 
-        // Calculate base opacity based on health (lower health = higher opacity)
-        float alpha = Mathf.InverseLerp(minHealthForEffect, maxOpacityHealthThreshold, health);
-        alpha = 0 + Mathf.Clamp01(alpha); // Invert so lower health = higher opacity
+        // Base opacity calculation (lower health = more visible)
+        float baseAlpha = Mathf.InverseLerp(minHealthForEffect, maxOpacityHealthThreshold, health);
+        baseAlpha = Mathf.Clamp01(baseAlpha); // Ensure valid range
 
-        // Add pulse effect when health is very low (below 30 HP)
+        // Stronger pulse effect when critically low (health < 30)
         if (health <= 30f)
         {
-            float pulseSpeed = 2.5f; // Speed of the pulsing effect
-            float pulse = Mathf.Abs(Mathf.Sin(Time.time * pulseSpeed)); // Oscillates between 0 and 1
-            alpha = Mathf.Lerp(alpha * 0.8f, alpha, pulse); // Smooth pulsing
+            float fadeSpeed = 0.5f; // Slower fade effect (2 seconds back and forth)
+            float fadeIntensity = 0.4f; // Maximum opacity variation
+
+            float fadeValue = Mathf.PingPong(Time.time * fadeSpeed, fadeIntensity);
+            baseAlpha = Mathf.Clamp01(baseAlpha + fadeValue);
         }
 
-        SetBloodOverlayAlpha(alpha);
+        SetBloodOverlayAlpha(baseAlpha);
     }
-
 
     void SetBloodOverlayAlpha(float alpha)
     {
@@ -97,6 +151,13 @@ public class PlayerHealth : MonoBehaviour
                         fallDamageSound.Play();
                         Debug.Log($"Fall Damage: {damage} (Fall Height: {fallDistance}m)");
                     }
+
+                    // Trigger Camera Shake if damage is significant
+                    if (damage > 10) // Adjust threshold for shake activation
+                    {
+                        float shakeIntensity = Mathf.Clamp(damage / 10f, 2f, 8f); // Boost shake effect
+                        StartCoroutine(ApplyCameraShake(0.8f, shakeIntensity)); // Longer shake duration
+                    }
                 }
             }
 
@@ -113,11 +174,17 @@ public class PlayerHealth : MonoBehaviour
         }
     }
 
+
     // Modify health (can be used for various damage types)
     public void ModifyHealth(float amount)
     {
         health += amount;
         health = Mathf.Clamp(health, 0, 100);  // Keep health between 0 and 100
+
+        if (amount < 0) // Only distort when taking damage
+        {
+            StartCoroutine(ApplyScreenStretchEffect());
+        }
 
         if (health <= 0)
         {
@@ -125,6 +192,32 @@ public class PlayerHealth : MonoBehaviour
             // Handle player death here (disable movement, show death screen, etc.)
         }
     }
+
+    IEnumerator ApplyScreenStretchEffect()
+    {
+        if (isDistorting || playerCamera == null) yield break;
+        isDistorting = true;
+
+        float duration = 0.3f;  // Effect duration
+        float baseFOV = playerCamera.fieldOfView;
+        float stretchFOV = baseFOV * 1.05f; // Increase FOV slightly
+
+        float elapsedTime = 0f;
+
+        while (elapsedTime < duration)
+        {
+            float lerpFactor = Mathf.Sin((elapsedTime / duration) * Mathf.PI); // Smooth transition
+            playerCamera.fieldOfView = Mathf.Lerp(baseFOV, stretchFOV, lerpFactor);
+
+            elapsedTime += Time.deltaTime;
+            yield return null;
+        }
+
+        playerCamera.fieldOfView = baseFOV; // Reset FOV
+        isDistorting = false;
+    }
+
+
 
     // Equip the radiation suit (called when the player picks up the suit)
     public void EquipRadiationSuit()
@@ -168,11 +261,12 @@ public class PlayerHealth : MonoBehaviour
     // Use Medical Syringe
     public void UseMedSyringe()
     {
-        if (isHealing || health >= 100) return; // Prevent over-healing or multiple uses
+        if (isHealing) return; // Allow healing effect even at full health
 
         isHealing = true;
         StartCoroutine(HealOverTime());
     }
+
 
     private IEnumerator HealOverTime()
     {
@@ -183,21 +277,100 @@ public class PlayerHealth : MonoBehaviour
             syringeUseSound.Play(); // Play the healing sound
         }
 
-        float healAmount = 40f; // Amount of health to restore
-        float healTime = 1f; // Duration of healing effect
+        StartCoroutine(FadeHealingOverlay(0.15f, 0.5f)); // Always show healing effect (50% opacity)
+
+        float healAmount = 40f;
+        float healTime = 1f;
         float elapsedTime = 0f;
         float startHealth = health;
 
-        while (elapsedTime < healTime)
+        // Apply healing if not already at max health
+        if (health < 100)
         {
-            health = Mathf.Lerp(startHealth, Mathf.Clamp(startHealth + healAmount, 0, 100), elapsedTime / healTime);
+            while (elapsedTime < healTime)
+            {
+                health = Mathf.Lerp(startHealth, Mathf.Clamp(startHealth + healAmount, 0, 100), elapsedTime / healTime);
+                elapsedTime += Time.deltaTime;
+                yield return null;
+            }
+
+            health = Mathf.Clamp(startHealth + healAmount, 0, 100);
+            Debug.Log("Health Restored!");
+        }
+        else
+        {
+            yield return new WaitForSeconds(1f); // Hold the effect for 1 second even if already at 100 health
+        }
+
+        StartCoroutine(FadeHealingOverlay(0f, 1f)); // Fade out overlay
+
+        isHealing = false;
+    }
+
+    // Fade the healing overlay in or out
+    private IEnumerator FadeHealingOverlay(float targetAlpha, float duration)
+    {
+        if (healingOverlay == null) yield break;
+
+        Color startColor = healingOverlay.color;
+        float startAlpha = startColor.a;
+        float elapsedTime = 0f;
+
+        while (elapsedTime < duration)
+        {
+            float newAlpha = Mathf.Lerp(startAlpha, targetAlpha, elapsedTime / duration);
+            healingOverlay.color = new Color(startColor.r, startColor.g, startColor.b, newAlpha);
             elapsedTime += Time.deltaTime;
             yield return null;
         }
 
-        health = Mathf.Clamp(startHealth + healAmount, 0, 100); // Ensure exact healing
+        healingOverlay.color = new Color(startColor.r, startColor.g, startColor.b, targetAlpha);
+    }
 
-        Debug.Log("Health Restored!");
-        isHealing = false;
+    private IEnumerator ApplyCameraShake(float duration, float intensity)
+    {
+        if (healthCameraNoise != null)
+        {
+            float boostedIntensity = intensity * 2.5f;  // Increase shake effect
+            float boostedFrequency = Mathf.Clamp(intensity * 1.5f, 2f, 20f); // Boost frequency dynamically
+
+            Debug.Log($"Applying Camera Shake: Intensity {boostedIntensity}, Frequency {boostedFrequency}");
+
+            healthCameraNoise.m_AmplitudeGain = boostedIntensity;  // Stronger shake
+            healthCameraNoise.m_FrequencyGain = boostedFrequency;  // Faster shake
+
+            yield return new WaitForSeconds(duration);
+
+            // Reset shake effect
+            healthCameraNoise.m_AmplitudeGain = 0f;
+            healthCameraNoise.m_FrequencyGain = 0f;
+        }
+        else
+        {
+            Debug.LogError("No CinemachineBasicMultiChannelPerlin found on the camera!");
+        }
+    }
+
+    void UpdateCameraShake()
+    {
+        if (healthCameraNoise == null) return;
+
+        if (health >= 50)
+        {
+            // No shake if health is above 50
+            healthCameraNoise.m_AmplitudeGain = Mathf.Lerp(healthCameraNoise.m_AmplitudeGain, 0f, Time.deltaTime * 5f);
+            healthCameraNoise.m_FrequencyGain = Mathf.Lerp(healthCameraNoise.m_FrequencyGain, 0f, Time.deltaTime * 5f);
+        }
+        else
+        {
+            // Shake starts below 50 HP and worsens the lower it goes
+            float shakeIntensity = Mathf.InverseLerp(50f, 0f, health); // More shake at lower health
+            float amplitude = Mathf.Lerp(0f, 8f, shakeIntensity); // Stronger shake at lower HP
+            float frequency = Mathf.Lerp(0.01f, 0.01f, shakeIntensity); // 🔥 Much slower shake
+
+            healthCameraNoise.m_AmplitudeGain = amplitude;
+            healthCameraNoise.m_FrequencyGain = frequency;
+
+        }
     }
 }

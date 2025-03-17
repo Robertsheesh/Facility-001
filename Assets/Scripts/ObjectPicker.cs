@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections.Generic;
 using System.Collections;
 using Cinemachine;
@@ -419,13 +419,6 @@ public class ObjectPicker : MonoBehaviour
             pickedUpObject.transform.position = endPos;
         }
 
-
-        // Ensure it reaches final position
-        if (pickedUpObject != null)
-        {
-            pickedUpObject.transform.position = endPos;
-        }
-
         yield return new WaitForSeconds(0.2f); // Small delay before removing
         pickedUpObject.SetActive(false);
 
@@ -487,10 +480,19 @@ public class ObjectPicker : MonoBehaviour
     }
 
 
-
     public void PickUpObject(GameObject obj)
     {
-        // Check if the object is tagged as "PickUp"
+        // Reset item type flags for the new object
+        isPickupObject = false;
+        isFlashlight = false;
+        isKeycard = false;
+        isRewrittenKeycard = false;
+        isCrowbar = false;
+        isSeveredHand = false;
+        isBoneSaw = false;
+        isMedical = false;
+
+        // If the object is a "Pickup" (directly held item), equip it instantly
         if (obj.CompareTag("Pickup"))
         {
             isPickupObject = true;
@@ -499,86 +501,28 @@ public class ObjectPicker : MonoBehaviour
             {
                 playerInteractionUI.ShowPickupUI();
             }
-            // If the player is already holding something (e.g., crowbar or flashlight), deactivate it first
+
+            // 🔥 Keep current object in hand and just add the new object to inventory
             if (pickedUpObject != null)
             {
-                // Deactivate non-throwable items
-                if (pickedUpObject.CompareTag("Crowbar"))
-                {
-                    pickedUpObject.SetActive(false);
-                    isCrowbar = false; // Reset the crowbar flag
-                }
-                else if (pickedUpObject.CompareTag("Flashlight"))
-                {
-                    flashlightObject.SetActive(false);
-                    isFlashlight = false;   // Reset the flashlight flag, but keep reference to flashlightObject
-                }
-                else if (pickedUpObject.CompareTag("Keycard"))
-                {
-                    pickedUpObject.SetActive(false);
-                    isKeycard = false;   // Reset the flag, but keep reference to tObject
-                }
-                else if (pickedUpObject.CompareTag("RewrittenKeycard"))
-                {
-                    pickedUpObject.SetActive(false);
-                    isRewrittenKeycard = false;   // Reset the flag, but keep reference to Object
-                }
-                else if (pickedUpObject.CompareTag("SeveredHand"))
-                {
-                    pickedUpObject.SetActive(false);
-                    isSeveredHand = false;   // Reset the flag, but keep reference to Object
-                }
-                else if (pickedUpObject.CompareTag("RewrittenHand"))
-                {
-                    pickedUpObject.SetActive(false);
-                    isSeveredHand = false;
-                }
-                else if (pickedUpObject.CompareTag("BoneSaw"))
-                {
-                    pickedUpObject.SetActive(false);
-                    isBoneSaw = false;
-                }
-                else if (pickedUpObject.CompareTag("MedSyringe"))
-                {
-                    pickedUpObject.SetActive(false);
-                    isMedical = false;
-                }
-                pickedUpObject = null;
-
+                Debug.Log($"Holding {pickedUpObject.name} - Adding {obj.name} to inventory instead.");
+                AddItemToInventory(obj); // Just store the object, don't swap
+                return;
             }
 
-            // Now directly assign the "Pickup" object to the player's hands (bypass inventory)
-            pickedUpObject = obj;
-
-            // Disable physics while holding the object
-            Rigidbody rb = pickedUpObject.GetComponent<Rigidbody>();
-            if (rb != null)
-            {
-                rb.isKinematic = true; // Disable physics so it doesn't fall or collide
-            }
-
-            // Disable only BoxColliders to prevent object from interacting with the environment
-            Collider[] colliders = pickedUpObject.GetComponentsInChildren<Collider>(true);
-            foreach (Collider collider in colliders)
-            {
-                collider.enabled = false;  // Disable each collider
-            }
-
-            // Activate the object in the player's hand
-            pickedUpObject.SetActive(true);
-
-            Debug.Log("Picked up object directly into hands: " + pickedUpObject.name);
-
-            return; // Skip the rest of the inventory logic
+            // If hands are empty, equip the object
+            EquipNewItem(obj);
+            return;
         }
 
-        // For non-PickUp objects (like flashlight, crowbar, etc.), handle as usual and add them to the inventory
+        // 🔥 For non-"Pickup" objects (like flashlight, crowbar, etc.), add to inventory instead
         PlayPickupSound();
+
         // Check if inventory is full
         if (inventory.Count >= maxInventorySlots)
         {
             Debug.Log("Inventory is full! Cannot pick up more items.");
-            return; // Prevent picking up if inventory is full
+            return;
         }
 
         // Find the next available slot in the inventory
@@ -589,46 +533,46 @@ public class ObjectPicker : MonoBehaviour
             return;
         }
 
-        // If it's a flashlight, make sure to turn it off when picking it up
+        // Handle flashlight separately (turn it off before storing it)
         if (obj.CompareTag("Flashlight"))
         {
             Light flashlightLight = obj.GetComponentInChildren<Light>();
             if (flashlightLight != null)
             {
                 flashlightLight.enabled = false;  // Turn off flashlight
-                PlayFlashlightSound();  // Play the sound when turning it off
+                PlayFlashlightSound();
             }
-            flashlightObject = obj; // Save the flashlight reference for future toggling
+            flashlightObject = obj;
         }
 
-        // Disable physics while holding the object
+        // Disable physics before storing the object
         Rigidbody rbObj = obj.GetComponent<Rigidbody>();
         if (rbObj != null)
         {
-            rbObj.isKinematic = true; // Disable physics so it doesn't fall or collide
+            rbObj.isKinematic = true;
         }
 
-        // Disable only BoxColliders to prevent object from interacting with the environment
+        // Disable colliders before storing
         Collider[] objColliders = obj.GetComponentsInChildren<Collider>(true);
         foreach (Collider collider in objColliders)
         {
-            collider.enabled = false;  // Disable each BoxCollider
+            collider.enabled = false;
         }
 
-        // Deactivate the object in the scene
+        // Deactivate the object in the scene (store it in inventory)
         obj.SetActive(false);
 
-        // Add the object to the inventory
+        // Add the object to inventory
         inventory.Add(slot, obj);
 
-        // If there is no currently equipped item, equip this item
+        Debug.Log($"Added {obj.name} to inventory in slot {slot}");
+
+        // 🔥 Only equip if NO item is currently held
         if (pickedUpObject == null)
         {
             SelectInventorySlot(slot);
         }
     }
-
-
 
     public void SelectInventorySlot(int slot)
     {
@@ -636,23 +580,20 @@ public class ObjectPicker : MonoBehaviour
         if (pickedUpObject != null && selectedSlot == slot)
         {
             PlayUnequipSound();
-            // Unequip the current item, leaving the player's hands empty
             StartCoroutine(UnequipItemCoroutine(-1)); // Pass -1 to indicate no new item will be equipped
-            return; // Exit the method after unequipping
+            return; // Exit after unequipping
         }
 
         // If there is a new item in the selected slot, equip it
         if (inventory.ContainsKey(slot))
         {
-            // If an item is currently equipped, animate it moving down (unequipping)
             if (pickedUpObject != null)
             {
                 StartCoroutine(UnequipItemCoroutine(slot));
             }
             else
             {
-                // If no item is currently equipped, just equip the new item instantly
-                EquipNewItem(slot);
+                EquipNewItem(inventory[slot]); // Fix: Now properly equips the item
             }
         }
         else
@@ -660,6 +601,7 @@ public class ObjectPicker : MonoBehaviour
             Debug.Log("No item in slot: " + slot);
         }
     }
+
 
     private IEnumerator UnequipItemCoroutine(int newSlot)
     {
@@ -680,10 +622,9 @@ public class ObjectPicker : MonoBehaviour
             pickedUpObject = null; // Clear the reference to the equipped item
         }
 
-        // If newSlot is -1, don't equip any new item (leave hands empty)
-        if (newSlot != -1)
+        if (newSlot != -1 && inventory.ContainsKey(newSlot))
         {
-            EquipNewItem(newSlot);
+            EquipNewItem(inventory[newSlot]); // Fix: Now properly equips the item
         }
     }
 
@@ -773,12 +714,20 @@ public class ObjectPicker : MonoBehaviour
         isSwinging = false;  // Allow another swing
     }
 
-    private void EquipNewItem(int slot)
+    private void EquipNewItem(GameObject obj)
     {
-        GameObject obj = inventory[slot];
-        obj.SetActive(false);
+        if (pickedUpObject != null)
+        {
+            pickedUpObject.SetActive(false);
+        }
+
         pickedUpObject = obj;
-        selectedSlot = slot;
+        obj.SetActive(true);
+        int slot = GetSlotForItem(obj);
+        if (slot != -1)
+        {
+            selectedSlot = slot; // Update the selected slot
+        }
 
         // Reset flags
         isFlashlight = false;
@@ -787,27 +736,24 @@ public class ObjectPicker : MonoBehaviour
         isCrowbar = false;
         isSeveredHand = false;
         isBoneSaw = false;
-        isMedical= false;
+        isMedical = false;
 
         PlayUnequipSound();
 
-        // Check if it's a flashlight
+        // Assign the correct flags
         if (pickedUpObject.CompareTag("Flashlight"))
         {
             isFlashlight = true;
             flashlightLight = pickedUpObject.GetComponentInChildren<Light>();
-
-            // Initialize flashlight to be off when equipped
             isFlashlightOn = false;
             if (flashlightLight != null)
             {
-                flashlightLight.enabled = false; // Ensure the light is off when picked up
+                flashlightLight.enabled = false;
             }
         }
-        // Check if it's a crowbar
         else if (pickedUpObject.CompareTag("Crowbar"))
         {
-            isCrowbar = true;  // Now we know the crowbar is equipped
+            isCrowbar = true;
         }
         else if (pickedUpObject.CompareTag("SeveredHand"))
         {
@@ -826,28 +772,11 @@ public class ObjectPicker : MonoBehaviour
             isMedical = true;
         }
 
-
         DisableColliders(pickedUpObject);
-
-        // Check if it's a keycard or rewritten keycard
-        isKeycard = pickedUpObject.CompareTag("Keycard");
-        isRewrittenKeycard = pickedUpObject.CompareTag("RewrittenKeycard");
-
-
-        // Handle colliders and physics for keycards
-        if (isKeycard || isRewrittenKeycard)
-        {
-            DisableColliders(pickedUpObject);
-
-            Rigidbody rb = pickedUpObject.GetComponent<Rigidbody>();
-            if (rb != null)
-            {
-                rb.isKinematic = true; // Disable physics
-            }
-        }
 
         pickedUpObject.SetActive(true);
     }
+
 
 
 
@@ -975,6 +904,19 @@ public class ObjectPicker : MonoBehaviour
         {
             Debug.Log("Flashlight sound is not assigned!");  // Debug if the AudioSource is null
         }
+    }
+
+    // Finds the inventory slot that contains the given item
+    private int GetSlotForItem(GameObject obj)
+    {
+        foreach (var kvp in inventory)
+        {
+            if (kvp.Value == obj)
+            {
+                return kvp.Key; // Return the slot number
+            }
+        }
+        return -1; // Return -1 if item is not found
     }
 
     // Helper function to get the next available inventory slot

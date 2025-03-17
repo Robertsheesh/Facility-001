@@ -1,4 +1,4 @@
-using Cinemachine;
+﻿using Cinemachine;
 using UnityEngine;
 
 public class SC_FPSController : MonoBehaviour
@@ -95,6 +95,21 @@ public class SC_FPSController : MonoBehaviour
         {
             HandleNormalMovement();
         }
+
+        if (isCrouching)
+        {
+            noise = crouchingCamera.GetCinemachineComponent<CinemachineBasicMultiChannelPerlin>();
+        }
+        else
+        {
+            noise = standingCamera.GetCinemachineComponent<CinemachineBasicMultiChannelPerlin>();
+        }
+
+        if (noise == null)
+        {
+            Debug.LogError("Cinemachine noise component not found!");
+            return;
+        }
     }
 
     void ToggleNoclip()
@@ -186,8 +201,12 @@ public class SC_FPSController : MonoBehaviour
             }
             else
             {
-                noise.m_AmplitudeGain = Mathf.Lerp(noise.m_AmplitudeGain, 0f, Time.deltaTime * 10f);
-                noise.m_FrequencyGain = Mathf.Lerp(noise.m_FrequencyGain, 0f, Time.deltaTime * 10f);
+                // Only reduce head bob if the PlayerHealth script isn't shaking the camera
+                if (Mathf.Approximately(noise.m_AmplitudeGain, 0))
+                {
+                    noise.m_AmplitudeGain = Mathf.Lerp(noise.m_AmplitudeGain, 0f, Time.deltaTime * 10f);
+                    noise.m_FrequencyGain = Mathf.Lerp(noise.m_FrequencyGain, 0f, Time.deltaTime * 10f);
+                }
             }
         }
     }
@@ -231,6 +250,13 @@ public class SC_FPSController : MonoBehaviour
             standingCamera.Priority = 0;
             isCrouching = true;
             noise = crouchingCamera.GetCinemachineComponent<CinemachineBasicMultiChannelPerlin>();
+
+            // Force Reset Shake when crouching while standing still 🔥
+            if (Mathf.Abs(Input.GetAxis("Vertical")) < 0.1f && Mathf.Abs(Input.GetAxis("Horizontal")) < 0.1f)
+            {
+                noise.m_AmplitudeGain = 0f;
+                noise.m_FrequencyGain = 0f;
+            }
         }
         else if (!crouchKeyHeld && isCrouching)
         {
@@ -240,7 +266,15 @@ public class SC_FPSController : MonoBehaviour
             crouchingCamera.Priority = 0;
             isCrouching = false;
             noise = standingCamera.GetCinemachineComponent<CinemachineBasicMultiChannelPerlin>();
+
+            // Reset standing camera shake too
+            if (Mathf.Abs(Input.GetAxis("Vertical")) < 0.1f && Mathf.Abs(Input.GetAxis("Horizontal")) < 0.1f)
+            {
+                noise.m_AmplitudeGain = 0f;
+                noise.m_FrequencyGain = 0f;
+            }
         }
+
 
         SyncCameraRotation();
     }
@@ -261,6 +295,12 @@ public class SC_FPSController : MonoBehaviour
                 standingCamera.Priority = 0;
                 isCrouching = true;
                 noise = crouchingCamera.GetCinemachineComponent<CinemachineBasicMultiChannelPerlin>();
+
+                if (Mathf.Abs(Input.GetAxis("Vertical")) < 0.1f && Mathf.Abs(Input.GetAxis("Horizontal")) < 0.1f)
+                {
+                    noise.m_AmplitudeGain = 0f;
+                    noise.m_FrequencyGain = 0f;
+                }
             }
         }
         else
@@ -275,6 +315,12 @@ public class SC_FPSController : MonoBehaviour
                 crouchingCamera.Priority = 0;
                 isCrouching = false;
                 noise = standingCamera.GetCinemachineComponent<CinemachineBasicMultiChannelPerlin>();
+
+                if (Mathf.Abs(Input.GetAxis("Vertical")) < 0.1f && Mathf.Abs(Input.GetAxis("Horizontal")) < 0.1f)
+                {
+                    noise.m_AmplitudeGain = 0f;
+                    noise.m_FrequencyGain = 0f;
+                }
             }
         }
 
@@ -312,11 +358,32 @@ public class SC_FPSController : MonoBehaviour
 
     void ApplyHeadBob(bool isRunning, bool isCrouching)
     {
-        float targetAmplitude = bobAmplitude;
-        float targetFrequency = isRunning ? runningBobFrequency : (isCrouching ? crouchBobFrequency : walkingBobFrequency);
+        if (noise == null) return;
 
-        noise.m_AmplitudeGain = Mathf.Lerp(noise.m_AmplitudeGain, targetAmplitude, Time.deltaTime * 10f);
-        noise.m_FrequencyGain = Mathf.Lerp(noise.m_FrequencyGain, targetFrequency, Time.deltaTime * 10f);
+        bool isMoving = Mathf.Abs(Input.GetAxis("Vertical")) > 0.1f || Mathf.Abs(Input.GetAxis("Horizontal")) > 0.1f;
+
+        if (isMoving)
+        {
+            float targetAmplitude = bobAmplitude;
+            float targetFrequency = isRunning ? runningBobFrequency : (isCrouching ? crouchBobFrequency : walkingBobFrequency);
+
+            noise.m_AmplitudeGain = Mathf.Lerp(noise.m_AmplitudeGain, targetAmplitude, Time.deltaTime * 10f);
+            noise.m_FrequencyGain = Mathf.Lerp(noise.m_FrequencyGain, targetFrequency, Time.deltaTime * 10f);
+        }
+        else
+        {
+            // Fully stop shake if crouching and standing still
+            if (isCrouching)
+            {
+                noise.m_AmplitudeGain = 0f;
+                noise.m_FrequencyGain = 0f;
+            }
+            else
+            {
+                noise.m_AmplitudeGain = Mathf.Lerp(noise.m_AmplitudeGain, 0f, Time.deltaTime * 5f);
+                noise.m_FrequencyGain = Mathf.Lerp(noise.m_FrequencyGain, 0f, Time.deltaTime * 5f);
+            }
+        }
     }
 
     private void OnTriggerEnter(Collider other)
