@@ -61,7 +61,8 @@ public class PlayerInteraction : MonoBehaviour
     {
         return tag == "Door" || tag == "Button" || tag == "Pickup" || tag == "Valve" || tag == "Fuel" ||
                tag == "Lever" || tag == "Flashlight" || tag == "Keycard" ||
-               tag == "RewrittenKeycard" || tag == "RadiationSuit" || tag == "Crowbar";
+               tag == "RewrittenKeycard" || tag == "RadiationSuit" || tag == "Crowbar" ||
+               tag == "MedSyringe" || tag == "VentObject" || tag == "AirlockLever";
     }
 
     bool IsComputer(string tag)
@@ -105,6 +106,15 @@ public class PlayerInteraction : MonoBehaviour
                     break;
                 case "Crowbar":
                     Debug.Log("Picking up crowbar: " + hit.collider.name);
+                    break;
+                case "MedSyringe":
+                    Debug.Log("Picking up Medical: " + hit.collider.name);
+                    break;
+                case "VentObject":
+                    Debug.Log("Pushing vent cover: " + hit.collider.name);
+                    break;
+                case "AirlockLever":
+                    Debug.Log("Turning airlock lever: " + hit.collider.name);
                     break;
             }
         }

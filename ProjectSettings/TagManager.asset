@@ -24,6 +24,8 @@ TagManager:
   - DoorSummer
   - VentTrigger
   - MedSyringe
+  - VentObject
+  - AirlockLever
   layers:
   - Default
   - TransparentFX
