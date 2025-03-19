@@ -29,7 +29,6 @@ public class PlayerHealth : MonoBehaviour
     private bool isDistorting = false;
 
     public CinemachineVirtualCamera playerCamera1; // Assign in Inspector
-    private CinemachineBasicMultiChannelPerlin healthCameraNoise; // Reference to camera shake effect
 
     [Header("Healing Effect")]
     public Image healingOverlay; // Assign the healing overlay PNG in the inspector
@@ -51,11 +50,6 @@ public class PlayerHealth : MonoBehaviour
         if (bloodOverlay != null)
         {
             SetBloodOverlayAlpha(0); // Ensure the overlay starts fully invisible
-        }
-        // Get Cinemachine Noise component from player camera
-        if (playerCamera != null)
-        {
-            healthCameraNoise = playerCamera1.GetCinemachineComponent<CinemachineBasicMultiChannelPerlin>();
         }
         if (postProcessingVolume != null)
         {
@@ -82,7 +76,7 @@ public class PlayerHealth : MonoBehaviour
         HandleFallDamage();
         UpdateBloodOverlay();
         UpdateSaturationEffect();
-        UpdateCameraShake();
+        CameraShakeManager.Instance.UpdateLowHealthShake(health);
     }
 
     void UpdateSaturationEffect()
@@ -145,18 +139,17 @@ public class PlayerHealth : MonoBehaviour
                     float damage = Mathf.Lerp(0, maxFallDamage, (fallDistance - minFallHeight) / (maxFallHeight - minFallHeight));
                     ModifyHealth(-damage);
 
-                    // Play Fall Damage Sound (Only if Damage Taken)
                     if (damage > 0 && fallDamageSound != null)
                     {
                         fallDamageSound.Play();
-                        Debug.Log($"Fall Damage: {damage} (Fall Height: {fallDistance}m)");
+                        Debug.Log($"💀 Fall Damage Taken: {damage} (Fall Height: {fallDistance}m)");
                     }
 
-                    // Trigger Camera Shake if damage is significant
-                    if (damage > 10) // Adjust threshold for shake activation
+                    if (damage > 10) // Only shake for significant falls
                     {
-                        float shakeIntensity = Mathf.Clamp(damage / 10f, 2f, 8f); // Boost shake effect
-                        StartCoroutine(ApplyCameraShake(0.8f, shakeIntensity)); // Longer shake duration
+                        float shakeIntensity = Mathf.Clamp(damage / 15f, 2f, 8f);
+                        Debug.Log($"Applying Fall Shake - Intensity: {shakeIntensity}, Frequency: {Mathf.Clamp(damage / 10f, 2f, 20f)} on both cameras.");
+                        CameraShakeManager.Instance.ShakeOnFall(damage);
                     }
                 }
             }
@@ -325,52 +318,5 @@ public class PlayerHealth : MonoBehaviour
         }
 
         healingOverlay.color = new Color(startColor.r, startColor.g, startColor.b, targetAlpha);
-    }
-
-    private IEnumerator ApplyCameraShake(float duration, float intensity)
-    {
-        if (healthCameraNoise != null)
-        {
-            float boostedIntensity = intensity * 2.5f;  // Increase shake effect
-            float boostedFrequency = Mathf.Clamp(intensity * 1.5f, 2f, 20f); // Boost frequency dynamically
-
-            Debug.Log($"Applying Camera Shake: Intensity {boostedIntensity}, Frequency {boostedFrequency}");
-
-            healthCameraNoise.m_AmplitudeGain = boostedIntensity;  // Stronger shake
-            healthCameraNoise.m_FrequencyGain = boostedFrequency;  // Faster shake
-
-            yield return new WaitForSeconds(duration);
-
-            // Reset shake effect
-            healthCameraNoise.m_AmplitudeGain = 0f;
-            healthCameraNoise.m_FrequencyGain = 0f;
-        }
-        else
-        {
-            Debug.LogError("No CinemachineBasicMultiChannelPerlin found on the camera!");
-        }
-    }
-
-    void UpdateCameraShake()
-    {
-        if (healthCameraNoise == null) return;
-
-        if (health >= 50)
-        {
-            // No shake if health is above 50
-            healthCameraNoise.m_AmplitudeGain = Mathf.Lerp(healthCameraNoise.m_AmplitudeGain, 0f, Time.deltaTime * 5f);
-            healthCameraNoise.m_FrequencyGain = Mathf.Lerp(healthCameraNoise.m_FrequencyGain, 0f, Time.deltaTime * 5f);
-        }
-        else
-        {
-            // Shake starts below 50 HP and worsens the lower it goes
-            float shakeIntensity = Mathf.InverseLerp(50f, 0f, health); // More shake at lower health
-            float amplitude = Mathf.Lerp(0f, 8f, shakeIntensity); // Stronger shake at lower HP
-            float frequency = Mathf.Lerp(0.01f, 0.01f, shakeIntensity); // 🔥 Much slower shake
-
-            healthCameraNoise.m_AmplitudeGain = amplitude;
-            healthCameraNoise.m_FrequencyGain = frequency;
-
-        }
     }
 }

@@ -11,6 +11,8 @@ public class ComputerCameraSwitcher : MonoBehaviour
     public GameObject pauseMenu;                     // Reference to the Pause Menu
     public PlayerInteraction PlayerInteractionScript; // Reference to the PlayerInteraction script
     public GameObject interactionUIParent;           // Reference to the interaction UI parent object
+    public ObjectPicker objectPicker;
+    private bool isComputerActive = false;
 
     private ComputerCLIExperiment computerCLI;       // Reference to the ComputerCLIExperiment script
     public bool isUsingComputer = false;             // Track if player is using the computer
@@ -73,6 +75,18 @@ public class ComputerCameraSwitcher : MonoBehaviour
         if (interactionInProgress) return;
         interactionInProgress = true;
 
+        if (objectPicker != null)
+        {
+            objectPicker.UnequipCurrentItem(); // Call the unequip function
+        }
+
+        isComputerActive = !isComputerActive;
+
+        if (objectPicker != null)
+        {
+            objectPicker.isUsingComputer = isComputerActive;
+        }
+
         isUsingComputer = !isUsingComputer;
 
         if (isUsingComputer)
@@ -113,6 +127,12 @@ public class ComputerCameraSwitcher : MonoBehaviour
 
     void ExitComputerMode()
     {
+
+        if (objectPicker != null)
+        {
+            objectPicker.isUsingComputer = false; // Re-enable inventory keys
+        }
+
         playerCamera.Priority = 10;
         computerCamera.Priority = 0;
 

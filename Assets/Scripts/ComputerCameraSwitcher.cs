@@ -9,6 +9,8 @@ public class ComputerInteraction : MonoBehaviour
     public float interactionDistance = 2.5f;         // Maximum distance to interact with the computer
     public GameObject computerCLIObject;             // Reference to the GameObject that holds the ComputerCLI script
     public GameObject pauseMenu;                     // Reference to the Pause Menu
+    public ObjectPicker objectPicker;
+    private bool isComputerActive = false;
 
     private ComputerCLI computerCLI;                 // Reference to the ComputerCLI script
     public bool isUsingComputer = false;             // Track if player is using the computer
@@ -95,6 +97,7 @@ public class ComputerInteraction : MonoBehaviour
             return;  // Exit early to prevent any further input
         }
 
+
         if (isUsingComputer)
         {
             if (Input.GetKeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(0))
@@ -122,8 +125,19 @@ public class ComputerInteraction : MonoBehaviour
 
         isUsingComputer = !isUsingComputer;
 
+        isComputerActive = !isComputerActive;
+
+        if (objectPicker != null)
+        {
+            objectPicker.isUsingComputer = isComputerActive;
+        }
+
         if (isUsingComputer)
         {
+            if (objectPicker != null)
+            {
+                objectPicker.UnequipCurrentItem(); // Call the unequip function
+            }
             // Hide all interaction texts
             PlayerInteractionScript.SetCrosshairDefault();
 
@@ -166,6 +180,11 @@ public class ComputerInteraction : MonoBehaviour
         if (computerCLI != null)
         {
             computerCLI.DisableInput();
+        }
+
+        if (objectPicker != null)
+        {
+            objectPicker.isUsingComputer = false; // Re-enable inventory keys
         }
 
         // Switch back to player camera

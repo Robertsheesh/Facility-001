@@ -13,6 +13,7 @@ public class VentClimb : MonoBehaviour
     public float moveSpeed = 3f; // Speed at which the player moves into the vent
     public float transitionTime = 1f; // Duration for the movement
     public VentTrigger ventTrigger; // Reference to the VentTrigger script
+    public ObjectPicker objectPicker;
 
     private bool isClimbing = false;
     private bool isPlayerInTrigger = false;
@@ -22,6 +23,10 @@ public class VentClimb : MonoBehaviour
     {
         if (isPlayerInTrigger && ventTrigger.isOpen && Input.GetKeyDown(KeyCode.Space) && !isClimbing)
         {
+            if (objectPicker != null)
+            {
+                objectPicker.UnequipCurrentItem();
+            }
             StartCoroutine(EnterVent());
         }
     }

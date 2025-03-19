@@ -1,22 +1,44 @@
-using UnityEngine;
+﻿using UnityEngine;
+using System.Collections;
 
 public class VentTrigger : MonoBehaviour
 {
-    public Animator ventAnimator;             // Animator for vent open animation
-    public float openImpactThreshold = 5f;    // Minimum impact force required to open the vent
-    public AudioSource ventOpenSound;         // Sound to play when the vent opens
-    public bool isOpen = false;              // Tracks if the vent is already open
+    public float openImpactThreshold = 5f; // Minimum force required to make the vent fall
+    public AudioSource ventOpenSound; // Sound played when the vent falls
+    public AudioSource ventImpactSound; // Sound played when the vent hits a surface
+    public bool isOpen = false; // Tracks if the vent is already open
+    private Rigidbody rb;
+    private Collider ventCollider;
 
-    // This method is called when a collision happens on this GameObject
+    private void Start()
+    {
+        rb = GetComponent<Rigidbody>();
+        ventCollider = GetComponent<Collider>();
+
+        if (rb == null)
+        {
+            Debug.LogError("VentTrigger requires a Rigidbody!");
+        }
+        else
+        {
+            rb.isKinematic = true; // ✅ Vent starts locked in place
+        }
+
+        if (ventCollider == null)
+        {
+            Debug.LogError("VentTrigger requires a Collider!");
+        }
+    }
+
     private void OnCollisionEnter(Collision collision)
     {
-        // Check if the vent is already open
+        // ✅ If already open, do nothing
         if (isOpen) return;
 
-        // Calculate the impact force using the collision's relative velocity
+        // Calculate the impact force
         float impactForce = collision.relativeVelocity.magnitude;
 
-        // Check if the impact force is greater than or equal to the threshold
+        // ✅ If impact is strong enough, make the vent fall
         if (impactForce >= openImpactThreshold)
         {
             OpenVent();
@@ -25,23 +47,44 @@ public class VentTrigger : MonoBehaviour
 
     private void OpenVent()
     {
-        isOpen = true;
+        isOpen = true; // ✅ Prevents multiple activations
 
-        // Play vent open sound, if assigned
+        // 🎵 Play vent open sound, if assigned
         if (ventOpenSound != null)
         {
             ventOpenSound.Play();
         }
 
-        // Trigger vent open animation if an animator is assigned
-        if (ventAnimator != null)
+        // ✅ Enable physics so the vent falls
+        if (rb != null)
         {
-            ventAnimator.SetTrigger("Open");  // Assumes the Animator has a "Open" trigger parameter
+            rb.isKinematic = false; // ✅ Makes the vent fall
+            rb.useGravity = true;   // ✅ Enables gravity so it drops naturally
         }
-        else
+
+        // ⏳ Wait 2 seconds before making it pick-upable
+        StartCoroutine(MakePickupable());
+
+        Debug.Log("Vent has fallen!");
+    }
+
+    private IEnumerator MakePickupable()
+    {
+        yield return new WaitForSeconds(2f); // ✅ Waits before making it pickupable
+
+        gameObject.tag = "Pickup"; // ✅ Now the player can pick it up!
+        Debug.Log("Vent is now pickupable.");
+    }
+
+    private void OnCollisionStay(Collision collision)
+    {
+        // ✅ Play impact sound when vent collides with the environment
+        if (ventImpactSound != null && collision.relativeVelocity.magnitude > 1.5f)
         {
-            // If no animator, we can disable the vent collider or apply a force to make it fall, etc.
-            GetComponent<Collider>().enabled = false;
+            if (!ventImpactSound.isPlaying)
+            {
+                ventImpactSound.Play();
+            }
         }
     }
 }
