@@ -177,6 +177,10 @@ public class ComputerInteraction : MonoBehaviour
     {
         Debug.Log("Switching back to player mode");
         // Disable input field and reset focus when exiting computer
+
+        // Disable computer interaction state BEFORE exiting
+        isUsingComputer = false;
+
         if (computerCLI != null)
         {
             computerCLI.DisableInput();

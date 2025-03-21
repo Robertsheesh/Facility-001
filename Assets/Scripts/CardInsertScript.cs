@@ -110,9 +110,10 @@ public class CardInsertScript : MonoBehaviour, IInteractable
             }
 
             objectPicker.PickUpObject(insertedKeycard);  // Use ObjectPicker to pick up the object again
+            objectPicker.SelectItemInInventory(insertedKeycard);  // Equip the keycard immediately
+
             insertedKeycard = null;  // Clear the reference once picked up
 
-            objectPicker.SelectItemInInventory(objectPicker.pickedUpObject);  // Equip the keycard immediately
             StartCardInsertSound();
 
             // Update the state of music, or other actions

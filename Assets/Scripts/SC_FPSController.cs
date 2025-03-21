@@ -21,6 +21,7 @@ public class SC_FPSController : MonoBehaviour
     public Camera playerCamera;
     public CinemachineVirtualCamera standingCamera;
     public CinemachineVirtualCamera crouchingCamera;
+    public CinemachineVirtualCamera sawingCamera; // Assign in Inspector
 
     public CharacterController characterController;
     private Animator animator;
@@ -289,6 +290,30 @@ public class SC_FPSController : MonoBehaviour
         else
         {
             playerCamera.transform.localRotation = Quaternion.Euler(rotationX, 0, 0);
+        }
+    }
+
+    public void EnterSawingMode()
+    {
+        canMove = false;
+        canMoveNormally = false;
+
+        if (sawingCamera != null)
+        {
+            sawingCamera.Priority = 20; // Ensure it's higher than the normal ones
+            sawingCamera.enabled = true;
+        }
+    }
+
+    public void ExitSawingMode()
+    {
+        canMove = true;
+        canMoveNormally = true;
+
+        if (sawingCamera != null)
+        {
+            sawingCamera.Priority = 0;
+            sawingCamera.enabled = false;
         }
     }
 

@@ -15,6 +15,11 @@ public class PlayerInteraction : MonoBehaviour
 
     public GameObject ThrowUI;
 
+    public ComputerInteraction computerCameraSwitcher;
+    public ComputerCameraSwitcher computerCameraSwitcher1;
+
+    private bool wasUsingComputer = false; // Track previous computer usage state
+
     void Start()
     {
         // Ensure the correct crosshair is active at start
@@ -24,6 +29,23 @@ public class PlayerInteraction : MonoBehaviour
 
     void Update()
     {
+        bool isCurrentlyUsingComputer = IsUsingComputer();
+
+        // If the player just started using the computer, disable UI
+        if (isCurrentlyUsingComputer && !wasUsingComputer)
+        {
+            DisableInteractionUI();
+        }
+        // If the player just stopped using the computer, re-enable UI
+        else if (!isCurrentlyUsingComputer && wasUsingComputer)
+        {
+            SetCrosshairDefault();
+        }
+
+        wasUsingComputer = isCurrentlyUsingComputer; // Update state
+
+        if (isCurrentlyUsingComputer) return; // Prevent interactions while using a computer
+
         Ray ray = playerCamera.ScreenPointToRay(new Vector3(Screen.width / 2, Screen.height / 2));
         RaycastHit hit;
 
@@ -68,6 +90,12 @@ public class PlayerInteraction : MonoBehaviour
     bool IsComputer(string tag)
     {
         return tag == "Computer" || tag == "DoorSummer";
+    }
+
+    bool IsUsingComputer()
+    {
+        return (computerCameraSwitcher != null && computerCameraSwitcher.isUsingComputer) ||
+               (computerCameraSwitcher1 != null && computerCameraSwitcher1.isUsingComputer);
     }
 
     void HandleInteraction(RaycastHit hit)
@@ -155,5 +183,13 @@ public class PlayerInteraction : MonoBehaviour
     public void HidePickupUI()
     {
         ThrowUI.SetActive(false);
+    }
+
+    void DisableInteractionUI()
+    {
+        if (defaultCrosshair != null) defaultCrosshair.enabled = false;
+        if (interactCrosshair != null) interactCrosshair.enabled = false;
+        if (inspectCrosshair != null) inspectCrosshair.SetActive(false);
+        if (ThrowUI != null) ThrowUI.SetActive(false);
     }
 }

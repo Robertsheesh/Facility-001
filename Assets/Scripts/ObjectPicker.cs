@@ -40,6 +40,11 @@ public class ObjectPicker : MonoBehaviour
     public Vector3 severedHandRotationOffset = new Vector3(0f, 0f, 0f);        // Rotation offset for the severed hand
     public bool isSeveredHand = false;
 
+    [Header("Rewritten Hand Settings")]
+    public Vector3 rewrittenHandPositionOffset = new Vector3(0.5f, -0.5f, 1.5f); // Position offset for the severed hand
+    public Vector3 rewrittenHandRotationOffset = new Vector3(0f, 0f, 0f);        // Rotation offset for the severed hand
+    public bool isRewrittenHand = false;
+
     [Header("Crowbar Settings")]
     public Vector3 crowbarPositionOffset = new Vector3(0.3f, -0.4f, 1.0f);  // Custom position offset for the crowbar
     public Vector3 crowbarRotationOffset = new Vector3(0f, -90f, 0f);  // Custom rotation offset for the crowbar
@@ -69,6 +74,7 @@ public class ObjectPicker : MonoBehaviour
     public AudioSource boneSawAudioSource;  // Assign this in the inspector or dynamically
     public bool isBoneSaw = false;
     public bool isSawing = false;
+    public BoneSawScript boneSawScript;
 
     [Header("Sound Settings")]
     public AudioSource audioSource;  // The audio source for playing unequip sounds
@@ -166,11 +172,6 @@ public class ObjectPicker : MonoBehaviour
             HitWithCrowbar(); // Call the hitting function for the crowbar
         }
 
-        if (Input.GetMouseButtonDown(0) && isBoneSaw)
-        {
-            BoneSawSawing();
-        }
-
         // Detect input for switching items (number keys 1-9)
         for (int i = 1; i <= maxInventorySlots; i++)
         {
@@ -260,9 +261,32 @@ public class ObjectPicker : MonoBehaviour
                 // Apply the rotation offset to the severed hand, using the camera's rotation as a base
                 pickedUpObject.transform.rotation = playerCamera.transform.rotation * Quaternion.Euler(severedHandRotationOffset);
             }
+            else if (isRewrittenHand)
+            {
+                Vector3 holdPosition = playerCamera.transform.position
+                       + playerCamera.transform.forward * rewrittenHandPositionOffset.z
+                       + playerCamera.transform.right * rewrittenHandPositionOffset.x
+                       + playerCamera.transform.up * rewrittenHandPositionOffset.y;
+
+                pickedUpObject.transform.position = holdPosition;
+
+                // Apply the rotation offset to the severed hand, using the camera's rotation as a base
+                pickedUpObject.transform.rotation = playerCamera.transform.rotation * Quaternion.Euler(rewrittenHandRotationOffset);
+
+            }
             else if (isBoneSaw)
             {
+                BoneSawScript sawScript = pickedUpObject.GetComponent<BoneSawScript>();
 
+                if (sawScript != null && sawScript.isAtTarget)
+                {
+                    Debug.Log("Saw is at target, preventing movement override.");
+                    pickedUpObject.transform.SetParent(sawScript.targetSawingPoint); // ✅ Force it to stay there
+                    return;
+                }
+
+                // If not at target, keep it in the player's hand
+                pickedUpObject.transform.SetParent(null);
                 Vector3 holdPosition = playerCamera.transform.position
                                        + playerCamera.transform.forward * boneSawPositionOffset.z
                                        + playerCamera.transform.right * boneSawPositionOffset.x
@@ -270,7 +294,6 @@ public class ObjectPicker : MonoBehaviour
 
                 pickedUpObject.transform.position = holdPosition;
                 pickedUpObject.transform.rotation = playerCamera.transform.rotation * Quaternion.Euler(boneSawRotationOffset);
-
             }
             else if (isMedical) // Medical syringe
             {
@@ -307,71 +330,6 @@ public class ObjectPicker : MonoBehaviour
             }
         }
     }
-
-    private void BoneSawSawing()
-    {
-        if (!isBoneSaw) return; // Only proceed if the saw is equipped
-
-        isSawing = true;
-
-        // Define motion parameters
-        float sawSpeed = 1f; // Speed of the motion
-        float sawRange = 9f; // Range of the motion along the Z-axis (forward and backward)
-        Vector3 sawInitialPosition = playerCamera.transform.position
-                                     + playerCamera.transform.forward * boneSawPositionOffset.z
-                                     + playerCamera.transform.right * boneSawPositionOffset.x
-                                     + playerCamera.transform.up * boneSawPositionOffset.y;
-
-        Vector3 forwardPosition = sawInitialPosition + playerCamera.transform.forward * sawRange;
-        Vector3 backwardPosition = sawInitialPosition - playerCamera.transform.forward * sawRange;
-
-        // Back-and-forth motion logic
-        float pingPong = Mathf.PingPong(Time.time * sawSpeed, 1); // Creates smooth oscillation between 0 and 1
-        pickedUpObject.transform.position = Vector3.Lerp(backwardPosition, forwardPosition, pingPong);
-
-        Debug.Log($"Saw Position: {pickedUpObject.transform.position}");
-
-        // Detect objects in range for sawing
-        RaycastHit hit;
-        if (Physics.Raycast(playerCamera.transform.position, playerCamera.transform.forward, out hit, 2.5f))
-        {
-            Debug.Log("Sawing: " + hit.collider.name);
-
-            // Play sawing sound
-            if (boneSawAudioSource != null && !boneSawAudioSource.isPlaying)
-            {
-                boneSawAudioSource.Play();
-            }
-        }
-        else
-        {
-            // Stop sound if no object is in range
-            if (boneSawAudioSource != null && boneSawAudioSource.isPlaying)
-            {
-                boneSawAudioSource.Stop();
-            }
-        }
-
-        // Stop the manual motion when the mouse button is released
-        if (!Input.GetMouseButton(0))
-        {
-            StopSawMotion();
-        }
-    }
-
-    private void StopSawMotion()
-    {
-        if (pickedUpObject != null)
-        {
-            // Reset the saw to its original position when stopping
-            pickedUpObject.transform.localPosition = boneSawPositionOffset;
-            Debug.Log("Saw motion stopped.");
-        }
-
-        isSawing = false;
-    }
-
-
 
     // Crowbar hitting mechanic
     void HitWithCrowbar()
@@ -519,6 +477,7 @@ public class ObjectPicker : MonoBehaviour
                 isRewrittenKeycard = false;
                 isCrowbar = false;
                 isSeveredHand = false;
+                isRewrittenHand = false;
                 isBoneSaw = false;
                 isMedical = false;
             }
@@ -657,6 +616,7 @@ public class ObjectPicker : MonoBehaviour
             isRewrittenKeycard = false;
             isCrowbar = false;
             isSeveredHand = false;
+            isRewrittenHand = false;
             isBoneSaw = false;
             isMedical = false;
 
@@ -751,7 +711,7 @@ public class ObjectPicker : MonoBehaviour
         isSwinging = false;  // Allow another swing
     }
 
-    private void EquipNewItem(GameObject obj)
+    public void EquipNewItem(GameObject obj)
     {
         if (pickedUpObject != null)
         {
@@ -772,6 +732,7 @@ public class ObjectPicker : MonoBehaviour
         isRewrittenKeycard = false;
         isCrowbar = false;
         isSeveredHand = false;
+        isRewrittenHand= false;
         isBoneSaw = false;
         isMedical = false;
 
@@ -798,11 +759,18 @@ public class ObjectPicker : MonoBehaviour
         }
         else if (pickedUpObject.CompareTag("RewrittenHand"))
         {
-            isSeveredHand = true;
+            isRewrittenHand = true;
         }
         else if (pickedUpObject.CompareTag("BoneSaw"))
         {
             isBoneSaw = true;
+
+            // Attach BoneSawScript if not already present
+            boneSawScript = pickedUpObject.GetComponent<BoneSawScript>();
+            if (boneSawScript == null)
+            {
+                boneSawScript = pickedUpObject.AddComponent<BoneSawScript>();
+            }
         }
         else if (pickedUpObject.CompareTag("MedSyringe"))
         {
@@ -875,51 +843,46 @@ public class ObjectPicker : MonoBehaviour
             }
             else
             {
-                // For non-PickUp items, unequip instead of dropping
-                if (pickedUpObject.CompareTag("Flashlight"))
-                {
-                    pickedUpObject.SetActive(false);  // Deactivate the flashlight
-                    flashlightLight = null;  // Clear flashlight reference
-                    isFlashlight = false;    // Reset flashlight flag
-                }
-                else if (pickedUpObject.CompareTag("Crowbar"))
-                {
-                    pickedUpObject.SetActive(false);  // Deactivate the crowbar
-                    isCrowbar = false;  // Reset crowbar flag
-                }
-                else if (pickedUpObject.CompareTag("Keycard") || pickedUpObject.CompareTag("RewrittenKeycard"))
-                {
-                    pickedUpObject.SetActive(false);  // Deactivate keycards
-                    isKeycard = false;      // Reset keycard flags
-                    isRewrittenKeycard = false;
-                }
-                else if (pickedUpObject.CompareTag("SeveredHand"))
-                {
-                    pickedUpObject.SetActive(false);
-                    isSeveredHand = false;
-                }
-                else if (pickedUpObject.CompareTag("RewrittenHand"))
-                {
-                    pickedUpObject.SetActive(false);
-                    isSeveredHand = false;
-                }
-                else if (pickedUpObject.CompareTag("BoneSaw"))
-                {
-                    pickedUpObject.SetActive(false);
-                    isBoneSaw = false;
-                }
-                else if (pickedUpObject.CompareTag("MedSyringe"))
-                {
-                    pickedUpObject.SetActive(false);
-                    isMedical = false;
-                }
-
-                Debug.Log("Unequipped: " + pickedUpObject.name);
-
-                // Clear the reference to the unequipped object
+                DropAndReset(pickedUpObject);
+                RemoveItemFromInventory(pickedUpObject); // Remove from inventory if needed
                 pickedUpObject = null;
+                return;
+            }
+
+            // Drop the currently selected inventory slot if nothing is held
+            if (inventory.ContainsKey(selectedSlot))
+            {
+                GameObject objToDrop = inventory[selectedSlot];
+                DropAndReset(objToDrop);
+                inventory.Remove(selectedSlot);
+                Debug.Log("Dropped from inventory: " + objToDrop.name);
             }
         }
+    }
+
+    private void DropAndReset(GameObject obj)
+    {
+        if (obj == null) return;
+
+        obj.SetActive(true);
+        obj.transform.SetParent(null);
+
+        // Place item slightly in front of the player
+        Vector3 dropPosition = playerCamera.transform.position + playerCamera.transform.forward * 1f;
+        obj.transform.position = dropPosition;
+
+        // Enable physics
+        Rigidbody rb = obj.GetComponent<Rigidbody>();
+        if (rb != null)
+        {
+            rb.isKinematic = false;
+            rb.useGravity = true;
+        }
+
+        // Enable colliders
+        EnableColliders(obj);
+
+        PlayUnequipSound();
     }
 
 
@@ -1054,6 +1017,18 @@ public class ObjectPicker : MonoBehaviour
         inventory.Add(slot, obj);
 
         Debug.Log("Added object to inventory: " + obj.name + " in slot " + slot);
+    }
+
+    public bool IsItemInInventory(GameObject obj)
+    {
+        foreach (var kvp in inventory)
+        {
+            if (kvp.Value == obj)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
 

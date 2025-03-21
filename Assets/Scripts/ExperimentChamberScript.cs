@@ -3,7 +3,7 @@ using UnityEngine;
 public class ExperimentChamberScript : MonoBehaviour, IInteractable
 {
     public Transform handPlacement;
-    private ObjectPicker objectPicker;
+    public ObjectPicker objectPicker;
     private GameObject insertedHand = null;
     public ExperimentDoor experimentDoor;
 
@@ -109,10 +109,9 @@ public class ExperimentChamberScript : MonoBehaviour, IInteractable
                 }
             }
 
-            objectPicker.PickUpObject(insertedHand);  // Use ObjectPicker to pick up the object again
-            insertedHand = null;  // Clear the reference once picked up
-
-            objectPicker.SelectItemInInventory(objectPicker.pickedUpObject);  // Equip the keycard immediately
+                objectPicker.PickUpObject(insertedHand);
+                objectPicker.SelectItemInInventory(insertedHand);  // Use the actual reference
+                insertedHand = null;
             }
         }
         else

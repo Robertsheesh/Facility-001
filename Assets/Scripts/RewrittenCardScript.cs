@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections;
 
 public class CardReaderScript : MonoBehaviour, IInteractable
@@ -88,54 +88,30 @@ public class CardReaderScript : MonoBehaviour, IInteractable
     {
         if (insertedKeycard == null)
         {
-            Debug.LogError("Inserted keycard is null in PickUpInsertedKeycard");
-            return;  // Prevent further code from running if keycard is not inserted
+            Debug.LogError("Inserted keycard is null.");
+            return;
         }
 
         Debug.Log("Player picked up the inserted keycard.");
 
-        // Deactivate the flashlight if it's equipped
-        if (objectPicker.isFlashlight && objectPicker.flashlightObject != null)
-        {
-            objectPicker.flashlightObject.SetActive(false);  // Deactivate the flashlight
-            objectPicker.flashlightLight = null;  // Clear the flashlight reference
-            objectPicker.isFlashlight = false;   // Reset the flashlight flag
-        }
+        // Unparent
+        insertedKeycard.transform.SetParent(null);
 
-        // Deactivate the crowbar if it's equipped
-        if (objectPicker.isCrowbar && objectPicker.pickedUpObject != null && objectPicker.pickedUpObject.CompareTag("Crowbar"))
-        {
-            objectPicker.pickedUpObject.SetActive(false);  // Deactivate the crowbar
-            objectPicker.isCrowbar = false;  // Reset the crowbar flag
-        }
+        // Re-enable physics and colliders
+        Rigidbody rb = insertedKeycard.GetComponent<Rigidbody>();
+        if (rb != null) rb.isKinematic = true;
 
-        // Directly assign the keycard to the player's hand
-        objectPicker.pickedUpObject = insertedKeycard;
-
-        objectPicker.AddItemToInventory(insertedKeycard);  // Add keycard to inventory
-
-        // Disable physics and colliders for the keycard, so it doesn't interact with the environment
-        Rigidbody rb = objectPicker.pickedUpObject.GetComponent<Rigidbody>();
-        if (rb != null)
-        {
-            rb.isKinematic = true;  // Disable physics
-        }
-        Collider[] colliders = objectPicker.pickedUpObject.GetComponentsInChildren<Collider>();
+        Collider[] colliders = insertedKeycard.GetComponentsInChildren<Collider>(true);
         foreach (Collider collider in colliders)
         {
-            collider.enabled = false;  // Disable all colliders
+            collider.enabled = false;
         }
 
-        // Ensure the keycard is active
-        objectPicker.pickedUpObject.SetActive(true);
+        objectPicker.PickUpObject(insertedKeycard);
+        objectPicker.SelectItemInInventory(insertedKeycard);
 
-        // Set the flags to track that the player is holding a keycard
-        objectPicker.isKeycard = true;
-
-        // Clear the inserted keycard reference from the keycard reader
         insertedKeycard = null;
-
-        StartCardInsertSound();  // Play the sound effect for picking up the keycard
+        StartCardInsertSound();
     }
 
 
