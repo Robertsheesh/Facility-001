@@ -11,7 +11,8 @@ I’ve always been fascinated by game development, and this project was my way o
 ### Key Features:
 - First-person interaction system - built with C# interfaces (IInteractable) for modular and reusable object logic. 
 - Cinematic camera control - implemented using Cinemachine for smooth transitions between player and scripted sequences. 
-- Physics-based interactions - includes custom mechanics such as a bone sawing system and other environment-linked tools. 
+- Physics-based interactions - includes custom mechanics such as a healing system, bone sawing system and other environment-linked tools.
+- Fully working computer - with login system, surveillance camera system, and other story related functions such as keycard rewriting.
 - Player control lock & state handling - dynamic toggling of movement and camera input during scripted events. 
 - Lighting & post-processing - Unity’s Built-in Render Pipeline, with fog, color grading, and layered lighting for an industrial atmosphere. 
 - Trigger-driven animation system - interaction zones activate context-specific animations and sound effects.
